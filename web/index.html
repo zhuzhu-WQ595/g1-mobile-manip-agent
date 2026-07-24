@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Self-test Agent</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark">SA</div>
+        <div>
+          <h1>Self-test Agent</h1>
+          <p>DeepSeek · 本地工具 · 文件操作</p>
+        </div>
+      </div>
+
+      <section class="panel">
+        <h2>状态</h2>
+        <div class="status-row"><span>服务</span><strong id="serverStatus">检查中</strong></div>
+        <div class="status-row"><span>模型</span><strong>DeepSeek</strong></div>
+        <div class="status-row"><span>工作区</span><strong>self-test</strong></div>
+      </section>
+
+      <section class="panel">
+        <h2>快捷操作</h2>
+        <button class="quick" data-text="list files">列出文件</button>
+        <button class="quick" data-text="read README.md">读取 README</button>
+        <button class="quick" data-text="python version">Python 版本</button>
+        <button class="quick" data-text="write notes/web-test.txt :: hello from web ui">写入测试文件</button>
+      </section>
+
+      <button id="resetBtn" class="secondary">重置对话</button>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <h2>对话</h2>
+          <p>输入需求，Agent 会判断是否需要调用工具。</p>
+        </div>
+      </header>
+
+      <section id="chatLog" class="chat-log" aria-live="polite"></section>
+
+      <form id="chatForm" class="composer">
+        <textarea id="messageInput" rows="3" placeholder="例如：list files 或 帮我读取 README.md"></textarea>
+        <button id="sendBtn" type="submit">发送</button>
+      </form>
+    </main>
+
+    <aside class="trace-panel">
+      <h2>工具轨迹</h2>
+      <div id="traceLog" class="trace-log"></div>
+    </aside>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
