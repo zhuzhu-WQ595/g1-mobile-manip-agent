@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from ..permissions import resolve_workspace_path
-from .formatter import format_plan
+from ..state.task_store import get_task_record
+from .formatter import format_plan, format_plan_progress
 from .store import load_plans, save_plans
 from .summary import is_summary_step, previous_step_results, summarize_previous_results
 
@@ -40,6 +41,9 @@ def execute_plan_step(plan_id: str, step_index: int) -> str:
                 continue
             if step.get("status") == "done":
                 return f"Step already done: {plan_id} step {step_index}"
+            linked_error = _linked_execution_error(plan, int(step_index))
+            if linked_error:
+                return linked_error
             content = str(step.get("content", ""))
             result = _execute_supported_step(content, plan, int(step_index))
             if result is None:
@@ -49,7 +53,8 @@ def execute_plan_step(plan_id: str, step_index: int) -> str:
                 save_plans(plans)
                 return (
                     f"Step is not supported for automatic execution yet: {content}\n"
-                    "Updated status to blocked."
+                    "Updated status to blocked.\n"
+                    f"{format_plan_progress(plan)}"
                 )
             step["status"] = "done"
             step["result"] = result
@@ -58,15 +63,17 @@ def execute_plan_step(plan_id: str, step_index: int) -> str:
             step.pop("blocked_at", None)
             step.pop("diagnosis", None)
             save_plans(plans)
-            return "\n".join(
-                [
+            rows = [
                     f"Executed step {step_index}: {content}",
                     "Tool result:",
                     result,
                     "",
                     f"Updated {plan_id} step {step_index} to done.",
+                    format_plan_progress(plan),
                 ]
-            )
+            if plan.get("task_id") and all(item.get("status") == "done" for item in plan.get("steps", [])):
+                rows.append(f"All plan steps are done. Complete linked task {plan['task_id']} explicitly.")
+            return "\n".join(rows)
         return f"Step not found: {plan_id} step {step_index}"
     return f"Plan not found: {plan_id}"
 
@@ -83,8 +90,39 @@ def execute_next_plan_step(plan_id: str) -> str:
     return f"Plan not found: {plan_id}"
 
 
+def _linked_execution_error(plan: dict[str, Any], step_index: int) -> str | None:
+    task_id = plan.get("task_id")
+    if not task_id:
+        return None
+    task = get_task_record(str(task_id))
+    if task is None:
+        return f"Linked task not found: {task_id}"
+    if task.get("status") != "in_progress":
+        return f"Linked task {task_id} is {task.get('status')}; start or retry it before executing plan steps"
+    unfinished_previous = [
+        step
+        for step in plan.get("steps", [])
+        if int(step.get("index", 0)) < step_index and step.get("status") != "done"
+    ]
+    if unfinished_previous:
+        first = unfinished_previous[0]
+        return f"Cannot execute step {step_index} before step {first.get('index')} is done"
+    return None
+
+
 def _execute_supported_step(content: str, plan: dict[str, Any] | None = None, step_index: int = 0) -> str | None:
     lowered = content.lower()
+    if "readme" in lowered and "读取" in content:
+        path = resolve_workspace_path("README.md")
+        if not path.is_file():
+            return "README.md not found"
+        return path.read_text(encoding="utf-8", errors="replace")
+    if "python" in lowered and "统计" in content:
+        return _count_files_by_extension(".py")
+    if ("markdown" in lowered or ".md" in lowered) and "统计" in content:
+        return _count_files_by_extension(".md")
+    if "workspace" in lowered and ("统计" in content or "摘要" in content):
+        return _workspace_summary()
     if "readme" in lowered and ("读取" in content or "read" in lowered):
         path = resolve_workspace_path("README.md")
         if not path.is_file():
@@ -143,6 +181,14 @@ def _workspace_summary() -> str:
 
 def _suggest_action(content: str) -> str:
     lowered = content.lower()
+    if "readme" in lowered and "读取" in content:
+        return "Use read_file with path README.md."
+    if "python" in lowered and "统计" in content:
+        return "Use count_files_by_extension with extension .py."
+    if ("markdown" in lowered or ".md" in lowered) and "统计" in content:
+        return "Use count_files_by_extension with extension .md."
+    if "搜索" in content:
+        return "Use search_files with the relevant query."
     if "readme" in lowered:
         return "Use read_file with path README.md."
     if "python" in lowered and ("count" in lowered or "统计" in content):

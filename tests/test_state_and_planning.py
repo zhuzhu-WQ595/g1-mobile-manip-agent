@@ -113,6 +113,57 @@ def test_planning_create_and_execute_count_step(tmp_path, monkeypatch):
     assert "Count: 1" in output
 
 
+def test_task_plan_link_executes_in_order_without_auto_completing_task(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "README.md").write_text("linked plan readme", encoding="utf-8")
+    (tmp_path / "sample.py").write_text("print('hello')", encoding="utf-8")
+
+    from agent import permissions
+    from agent.planning import store
+    from agent.planning.actions import create_task_plan, get_task_plan
+    from agent.planning.executor import execute_next_plan_step, execute_plan_step
+    from agent.state import task_store
+
+    state_dir = tmp_path / ".agent_state"
+    monkeypatch.setattr(permissions, "WORKSPACE_ROOT", tmp_path.resolve())
+    monkeypatch.setattr(store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(store, "PLANS_FILE", state_dir / "plans.json")
+    monkeypatch.setattr(task_store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(task_store, "TASKS_FILE", state_dir / "tasks.json")
+
+    task_id = task_store.create_task("verify linked plan").split(":", 1)[0].removeprefix("Created ")
+    created = create_task_plan(task_id, ["read README.md", "count python files", "summarize results"])
+    plan_id = created.split(":", 1)[0]
+
+    assert f"linked task: {task_id}" in created
+    assert f"Plan ID: {plan_id}" in task_store.get_task_details(task_id)
+    assert create_task_plan(task_id, ["another step"]) == f"Task {task_id} is already linked to {plan_id}"
+    assert execute_next_plan_step(plan_id) == (
+        f"Linked task {task_id} is pending; start or retry it before executing plan steps"
+    )
+
+    task_store.start_task(task_id)
+    assert execute_plan_step(plan_id, 2) == "Cannot execute step 2 before step 1 is done"
+
+    first = execute_next_plan_step(plan_id)
+    assert "Executed step 1" in first
+    assert "linked plan readme" in first
+    assert "Progress: 1/3 done" in get_task_plan(task_id)
+
+    second = execute_next_plan_step(plan_id)
+    assert "Executed step 2" in second
+    assert "Count: 1" in second
+
+    third = execute_next_plan_step(plan_id)
+    assert "Executed step 3" in third
+    assert f"Complete linked task {task_id} explicitly" in third
+    assert "Status: in_progress" in task_store.get_task_details(task_id)
+
+    task_store.complete_task(task_id, "plan verified")
+    assert "Status: done" in task_store.get_task_details(task_id)
+    assert "Progress: 3/3 done" in get_task_plan(task_id)
+
+
 def _configure_approval_store(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 

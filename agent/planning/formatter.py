@@ -5,6 +5,8 @@ from typing import Any
 
 def format_plan(plan: dict[str, Any]) -> str:
     rows = [f"{plan['id']}: {plan['title']}"]
+    if plan.get("task_id"):
+        rows.append(f"  linked task: {plan['task_id']}")
     for step in plan.get("steps", []):
         rows.append(f"  {step['index']}. [{step['status']}] {step['content']}")
         if step.get("result"):
@@ -14,6 +16,14 @@ def format_plan(plan: dict[str, Any]) -> str:
         if step.get("diagnosis"):
             rows.append(f"     diagnosis: {result_preview(str(step['diagnosis']))}")
     return "\n".join(rows)
+
+
+def format_plan_progress(plan: dict[str, Any]) -> str:
+    steps = plan.get("steps", [])
+    total = len(steps)
+    done = sum(step.get("status") == "done" for step in steps)
+    blocked = sum(step.get("status") == "blocked" for step in steps)
+    return f"Progress: {done}/{total} done, {blocked} blocked"
 
 
 def result_preview(result: str, limit: int = 120) -> str:

@@ -121,6 +121,8 @@ fail task_123 :: tests failed
 retry task_123
 cancel task_123 :: no longer needed
 task task_123
+create task plan task_123 :: read README.md; count python files; summarize results
+task plan task_123
 skills
 search README
 append notes/example.txt :: hello

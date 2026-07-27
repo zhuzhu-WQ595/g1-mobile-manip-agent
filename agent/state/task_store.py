@@ -40,6 +40,26 @@ def _find_task(tasks: list[dict[str, Any]], task_id: str) -> dict[str, Any] | No
     return next((task for task in tasks if task.get("id") == task_id), None)
 
 
+def get_task_record(task_id: str) -> dict[str, Any] | None:
+    return _find_task(_load(), task_id)
+
+
+def attach_plan_to_task(task_id: str, plan_id: str) -> str:
+    tasks = _load()
+    task = _find_task(tasks, task_id)
+    if task is None:
+        return f"Task not found: {task_id}"
+    if task.get("status") in {"done", "cancelled"}:
+        return f"Cannot attach a plan to {task_id} while it is {task.get('status')}"
+    if task.get("plan_id"):
+        return f"Task {task_id} is already linked to {task['plan_id']}"
+
+    task["plan_id"] = plan_id
+    task["updated_at"] = int(time.time())
+    _save(tasks)
+    return f"Linked {task_id} to {plan_id}"
+
+
 def create_task(title: str, detail: str = "") -> str:
     title = title.strip()
     if not title:
@@ -148,6 +168,7 @@ def get_task_details(task_id: str) -> str:
         ("Title", "title"),
         ("Detail", "detail"),
         ("Status", "status"),
+        ("Plan ID", "plan_id"),
         ("Created", "created_at"),
         ("Updated", "updated_at"),
         ("Started", "started_at"),

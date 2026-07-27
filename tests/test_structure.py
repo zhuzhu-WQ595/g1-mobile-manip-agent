@@ -35,6 +35,8 @@ def test_tool_registry_has_matching_handlers_and_schemas():
     assert "fail_task" in handler_names
     assert "retry_task" in handler_names
     assert "cancel_task" in handler_names
+    assert "create_task_plan" in handler_names
+    assert "get_task_plan" in handler_names
     assert "edit_file" not in handler_names
 
 
@@ -175,6 +177,23 @@ def test_demo_model_routes_task_lifecycle():
     assert details["tool_calls"][0]["name"] == "get_task_details"
 
 
+def test_demo_model_routes_task_plan_linking():
+    model = DemoModel()
+    create = model.complete(
+        [user_message("为任务 task_123 创建计划 :: read README.md; count python files")],
+        tools=[],
+    )
+    show = model.complete([user_message("查看任务 task_123 的计划")], tools=[])
+
+    assert create["tool_calls"][0]["name"] == "create_task_plan"
+    assert create["tool_calls"][0]["arguments"] == {
+        "task_id": "task_123",
+        "steps": ["read README.md", "count python files"],
+    }
+    assert show["tool_calls"][0]["name"] == "get_task_plan"
+    assert show["tool_calls"][0]["arguments"] == {"task_id": "task_123"}
+
+
 def test_recent_tool_events_permission_is_allowed():
     check_tool_call("get_recent_tool_events", {"limit": 3})
     check_tool_call("cancel_pending_action", {"approval_id": "approval_001"})
@@ -186,6 +205,8 @@ def test_recent_tool_events_permission_is_allowed():
     check_tool_call("fail_task", {"task_id": "task_123", "error": "failed"})
     check_tool_call("retry_task", {"task_id": "task_123"})
     check_tool_call("cancel_task", {"task_id": "task_123"})
+    check_tool_call("create_task_plan", {"task_id": "task_123", "steps": ["read README.md"]})
+    check_tool_call("get_task_plan", {"task_id": "task_123"})
 
 
 def test_edit_approval_permission_stays_inside_workspace():
@@ -274,3 +295,5 @@ def test_system_prompt_contains_key_sections():
     assert "fail_task" in SYSTEM_PROMPT
     assert "retry_task" in SYSTEM_PROMPT
     assert "cancel_task" in SYSTEM_PROMPT
+    assert "create_task_plan" in SYSTEM_PROMPT
+    assert "get_task_plan" in SYSTEM_PROMPT

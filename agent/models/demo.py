@@ -187,6 +187,23 @@ class DemoModel:
         if lowered in {"memory", "read memory"}:
             return self._tool("read_memory", {})
 
+        match = re.match(
+            r"^create task plan\s+<?(task_\d+)>?\s+::\s*(.+)$",
+            user_text,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        if not match:
+            match = re.match(r"^为任务\s*<?(task_\d+)>?\s*创建计划\s*::\s*(.+)$", user_text, flags=re.DOTALL)
+        if match:
+            steps = [step.strip() for step in match.group(2).split(";") if step.strip()]
+            return self._tool("create_task_plan", {"task_id": match.group(1).lower(), "steps": steps})
+
+        match = re.match(r"^(?:task plan|show task plan)\s+<?(task_\d+)>?$", user_text, flags=re.IGNORECASE)
+        if not match:
+            match = re.match(r"^查看(?:任务)?\s*<?(task_\d+)>?\s*(?:的)?计划$", user_text)
+        if match:
+            return self._tool("get_task_plan", {"task_id": match.group(1).lower()})
+
         match = re.match(r"^create task\s+(.+?)(?:\s+::\s*(.*))?$", user_text, flags=re.DOTALL | re.IGNORECASE)
         if match:
             return self._tool(

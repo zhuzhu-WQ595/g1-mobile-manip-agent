@@ -95,6 +95,26 @@ def requested_task_action(text: str) -> dict[str, Any] | None:
     lowered = stripped.lower()
     task_id = r"<?(task_\d+)>?"
 
+    match = re.match(
+        rf"^create task plan\s+{task_id}\s+::\s*(.+)$",
+        stripped,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    if not match:
+        match = re.match(rf"^为任务\s*{task_id}\s*创建计划\s*::\s*(.+)$", stripped, flags=re.DOTALL)
+    if match:
+        steps = [step.strip() for step in match.group(2).split(";") if step.strip()]
+        return {
+            "tool": "create_task_plan",
+            "arguments": {"task_id": match.group(1).lower(), "steps": steps},
+        }
+
+    match = re.match(rf"^(?:task plan|show task plan)\s+{task_id}$", stripped, flags=re.IGNORECASE)
+    if not match:
+        match = re.match(rf"^查看(?:任务)?\s*{task_id}\s*(?:的)?计划$", stripped)
+    if match:
+        return {"tool": "get_task_plan", "arguments": {"task_id": match.group(1).lower()}}
+
     match = re.match(r"^create task\s+(.+?)(?:\s+::\s*(.*))?$", stripped, flags=re.DOTALL | re.IGNORECASE)
     if match:
         return {

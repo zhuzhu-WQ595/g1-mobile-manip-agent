@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from ..plans import (
     create_plan,
+    create_task_plan,
     diagnose_blocked_step,
     execute_next_plan_step,
     execute_plan_step,
+    get_task_plan,
     list_plans,
     resolve_blocked_step,
     suggest_next_plan_step,
@@ -155,6 +157,25 @@ STATE_TOOL_SCHEMAS: list[dict[str, object]] = [
         },
         ["title", "steps"],
     ),
+    schema(
+        "create_task_plan",
+        "Create and link an ordered plan for an existing non-terminal task without executing any steps.",
+        {
+            "task_id": {"type": "string"},
+            "steps": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Short ordered steps.",
+            },
+        },
+        ["task_id", "steps"],
+    ),
+    schema(
+        "get_task_plan",
+        "Show the linked plan and current step progress for one task.",
+        {"task_id": {"type": "string"}},
+        ["task_id"],
+    ),
     schema("list_plans", "List saved multi-step plans.", {}, []),
     schema(
         "update_plan_step",
@@ -223,6 +244,8 @@ STATE_TOOL_HANDLERS: dict[str, ToolHandler] = {
     "list_approval_history": list_approval_history,
     "get_approval_details": get_approval_details,
     "create_plan": create_plan,
+    "create_task_plan": create_task_plan,
+    "get_task_plan": get_task_plan,
     "list_plans": list_plans,
     "update_plan_step": update_plan_step,
     "suggest_next_plan_step": suggest_next_plan_step,

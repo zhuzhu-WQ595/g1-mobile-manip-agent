@@ -49,6 +49,8 @@ SAFE_STATE_TOOLS = {
     "list_approval_history",
     "get_approval_details",
     "create_plan",
+    "create_task_plan",
+    "get_task_plan",
     "list_plans",
     "update_plan_step",
     "suggest_next_plan_step",
