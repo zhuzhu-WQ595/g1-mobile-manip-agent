@@ -195,7 +195,7 @@ class DemoModel:
             "type": "message",
             "text": (
                 "Demo model received your message. Try: list files, read README.md, "
-                "show first 5 lines of README.md, write notes/hello.txt :: hello, "
+                "show first 5 lines of README.md, write notes/new-note.txt :: hello, "
                 "overwrite notes/test.txt :: hello, edit notes/test.txt :: hello => hi, "
                 "approve approval_001, count python files, "
                 "create plan demo :: step one; step two, suggest next step for plan_123, execute next step of plan_123, plans, "

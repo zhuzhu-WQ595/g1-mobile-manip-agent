@@ -18,7 +18,7 @@ Default mode uses a local demo model, so it runs without an API key. Try:
 ```text
 list files
 read README.md
-write notes/hello.txt :: hello from my agent
+write notes/new-note.txt :: hello from my agent
 python version
 q
 ```

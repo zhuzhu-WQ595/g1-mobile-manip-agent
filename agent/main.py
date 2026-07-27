@@ -14,7 +14,7 @@ def main() -> None:
     agent = Agent(model=model)
 
     print("self-test agent")
-    print("Type q to quit. Try: list files | read README.md | write notes/hello.txt :: hello | python version")
+    print("Type q to quit. Try: list files | read README.md | write notes/new-note.txt :: hello | python version")
     while True:
         try:
             text = input("agent >> ").strip()

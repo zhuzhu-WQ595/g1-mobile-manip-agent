@@ -17,7 +17,7 @@ FILE_TOOL_SCHEMAS: list[dict[str, object]] = [
     ),
     schema(
         "write_file",
-        "Write a UTF-8 text file inside the workspace.",
+        "Create a new UTF-8 text file inside the workspace. Refuse if the path already exists.",
         {"path": {"type": "string"}, "content": {"type": "string"}},
         ["path", "content"],
     ),
@@ -75,7 +75,11 @@ def read_file(path: str) -> str:
 def write_file(path: str, content: str) -> str:
     file_path = resolve_workspace_path(path)
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    file_path.write_text(content, encoding="utf-8")
+    try:
+        with file_path.open("x", encoding="utf-8") as fp:
+            fp.write(content)
+    except FileExistsError:
+        return f"File already exists: {path}; use request_overwrite_file"
     return f"Wrote {len(content)} characters to {file_path.relative_to(Path.cwd())}"
 
 
