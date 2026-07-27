@@ -227,6 +227,145 @@ def test_chinese_plan_steps_map_to_supported_executors():
     assert map_plan_step("总结结果") == {"mode": "summary"}
 
 
+def test_task_plan_executes_search_preview_and_pytest_steps(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "README.md").write_text("alpha\nneedle\nomega\n", encoding="utf-8")
+    tests_dir = tmp_path / "tests"
+    tests_dir.mkdir()
+    (tests_dir / "test_sample.py").write_text("def test_ok():\n    assert True\n", encoding="utf-8")
+
+    from agent import permissions
+    from agent.planning import store
+    from agent.planning.actions import create_task_plan, validate_task_plan
+    from agent.planning.executor import execute_next_plan_step
+    from agent.state import task_store
+
+    state_dir = tmp_path / ".agent_state"
+    monkeypatch.setattr(permissions, "WORKSPACE_ROOT", tmp_path.resolve())
+    monkeypatch.setattr(store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(store, "PLANS_FILE", state_dir / "plans.json")
+    monkeypatch.setattr(task_store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(task_store, "TASKS_FILE", state_dir / "tasks.json")
+
+    task_id = task_store.create_task("execute richer plan").split(":", 1)[0].removeprefix("Created ")
+    created = create_task_plan(
+        task_id,
+        [
+            "search needle",
+            "preview first 2 lines of README.md",
+            "run pytest",
+            "summarize results",
+        ],
+    )
+    plan_id = created.split(":", 1)[0]
+
+    validation = validate_task_plan(task_id)
+    assert "Automatic steps: 4/4" in validation
+    assert "tool=search_files" in validation
+    assert "tool=preview_file_head" in validation
+    assert "tool=run_command" in validation
+
+    task_store.start_task(task_id)
+    search = execute_next_plan_step(plan_id)
+    preview = execute_next_plan_step(plan_id)
+    pytest_result = execute_next_plan_step(plan_id)
+    summary = execute_next_plan_step(plan_id)
+
+    assert "text: README.md:2: needle" in search
+    assert "1: alpha" in preview
+    assert "2: needle" in preview
+    assert "exit_code=0" in pytest_result
+    assert "1 passed" in pytest_result
+    assert "Summary from previous completed steps:" in summary
+    assert "Progress: 4/4 done, 0 blocked" in summary
+
+
+def test_plan_steps_map_to_search_preview_and_pytest():
+    from agent.planning.step_mapping import map_plan_step
+
+    assert map_plan_step("list files in agent") == {
+        "mode": "tool",
+        "tool": "list_files",
+        "arguments": {"path": "agent"},
+    }
+    assert map_plan_step("search README") == {
+        "mode": "tool",
+        "tool": "search_files",
+        "arguments": {"path": ".", "query": "README"},
+    }
+    assert map_plan_step("search agent for TODO") == {
+        "mode": "tool",
+        "tool": "search_files",
+        "arguments": {"path": "agent", "query": "TODO"},
+    }
+    assert map_plan_step("preview first 10 lines of README.md") == {
+        "mode": "tool",
+        "tool": "preview_file_head",
+        "arguments": {"lines": 10, "path": "README.md"},
+    }
+    assert map_plan_step("run pytest") == {
+        "mode": "tool",
+        "tool": "run_command",
+        "arguments": {"command": "python -m pytest -q"},
+    }
+    assert map_plan_step('tool search_files {"path": "agent", "query": "executor"}') == {
+        "mode": "tool",
+        "tool": "search_files",
+        "arguments": {"path": "agent", "query": "executor"},
+    }
+    assert map_plan_step('tool unknown_tool {"x": 1}') == {
+        "mode": "manual",
+        "reason": "Tool is not enabled for plan execution: unknown_tool",
+    }
+
+
+def test_task_plan_executes_explicit_tool_steps_and_safe_edit_request(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "README.md").write_text("alpha\nneedle\nomega\n", encoding="utf-8")
+
+    from agent import permissions
+    from agent.planning import store
+    from agent.planning.actions import create_task_plan, validate_task_plan
+    from agent.planning.executor import execute_next_plan_step
+    from agent.state import approval_store, task_store
+
+    state_dir = tmp_path / ".agent_state"
+    monkeypatch.setattr(permissions, "WORKSPACE_ROOT", tmp_path.resolve())
+    monkeypatch.setattr(store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(store, "PLANS_FILE", state_dir / "plans.json")
+    monkeypatch.setattr(task_store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(task_store, "TASKS_FILE", state_dir / "tasks.json")
+    monkeypatch.setattr(approval_store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(approval_store, "APPROVALS_FILE", state_dir / "approvals.json")
+
+    task_id = task_store.create_task("generic tool plan").split(":", 1)[0].removeprefix("Created ")
+    created = create_task_plan(
+        task_id,
+        [
+            'tool list_files {"path": "."}',
+            'tool search_files {"path": ".", "query": "needle"}',
+            'tool request_edit_file {"path": "README.md", "old_text": "needle", "new_text": "changed"}',
+        ],
+    )
+    plan_id = created.split(":", 1)[0]
+
+    validation = validate_task_plan(task_id)
+    assert "Automatic steps: 3/3" in validation
+    assert "tool=list_files" in validation
+    assert "tool=request_edit_file" in validation
+
+    task_store.start_task(task_id)
+    listed = execute_next_plan_step(plan_id)
+    searched = execute_next_plan_step(plan_id)
+    edit_request = execute_next_plan_step(plan_id)
+
+    assert "file  README.md" in listed
+    assert "text: README.md:2: needle" in searched
+    assert "Approval required before editing a file." in edit_request
+    assert "Approval ID: approval_001" in edit_request
+    assert (tmp_path / "README.md").read_text(encoding="utf-8") == "alpha\nneedle\nomega\n"
+
+
 def _configure_approval_store(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 

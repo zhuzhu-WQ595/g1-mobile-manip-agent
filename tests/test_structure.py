@@ -395,3 +395,5 @@ def test_system_prompt_contains_key_sections():
     assert "create_task_plan" in SYSTEM_PROMPT
     assert "get_task_plan" in SYSTEM_PROMPT
     assert "validate_task_plan" in SYSTEM_PROMPT
+    assert "run pytest" in SYSTEM_PROMPT
+    assert "tool <tool_name>" in SYSTEM_PROMPT

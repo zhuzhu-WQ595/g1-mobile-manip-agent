@@ -16,6 +16,7 @@ CAPABILITIES = [
     "Create, inspect, suggest, execute one supported step, execute the next pending step, diagnose blocked steps, resolve blocked steps, and update multi-step plans with create_plan, list_plans, suggest_next_plan_step, execute_plan_step, execute_next_plan_step, diagnose_blocked_step, resolve_blocked_step, and update_plan_step.",
     "Link one ordered plan to a task with create_task_plan and inspect its progress with get_task_plan.",
     "Validate structured task-plan step mappings before execution with validate_task_plan.",
+    "Automatically execute structured plan steps through a plan tool runner for reading files, listing files, searching, previewing file heads, counting files, workspace summaries, pytest checks, approval requests, experiment notes, and summarizing prior results.",
     "Save and read simple long-term memory.",
     "Create, inspect, start, complete, fail, retry, and cancel local tasks with validated lifecycle transitions.",
     "Read built-in skill notes.",

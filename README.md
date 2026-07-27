@@ -126,6 +126,8 @@ complete latest task :: all tests passed
 开始当前任务
 完成最新任务 :: 全部通过
 create task plan task_123 :: read README.md; count python files; summarize results
+create task plan current task :: search README; preview first 10 lines of README.md; run pytest; summarize results
+create task plan current task :: tool list_files {"path": "agent"}; tool search_files {"path": "agent", "query": "executor"}; summarize results
 task plan task_123
 validate task plan task_123
 为当前任务创建计划 :: read README.md; count python files; summarize results

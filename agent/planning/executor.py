@@ -9,6 +9,7 @@ from ..state.task_store import get_task_record
 from .formatter import format_plan, format_plan_progress
 from .store import load_plans, save_plans
 from .summary import is_summary_step, previous_step_results, summarize_previous_results
+from .tool_runner import execute_plan_tool
 
 
 def suggest_next_plan_step(plan_id: str) -> str:
@@ -160,17 +161,7 @@ def _execute_supported_step(step: dict[str, Any], plan: dict[str, Any] | None = 
 
 
 def _execute_mapped_tool(name: str, arguments: dict[str, Any]) -> str | None:
-    if name == "read_file":
-        path = resolve_workspace_path(str(arguments.get("path", "")))
-        if not path.is_file():
-            return f"File not found: {arguments.get('path', '')}"
-        return path.read_text(encoding="utf-8", errors="replace")
-    if name == "count_files_by_extension":
-        extension = str(arguments.get("extension", ""))
-        return _count_files_by_extension(extension)
-    if name == "get_workspace_summary":
-        return _workspace_summary()
-    return None
+    return execute_plan_tool(name, arguments)
 
 
 def _blocked_error_for_step(content: str, plan: dict[str, Any], step_index: int) -> str:
