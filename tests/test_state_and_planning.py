@@ -41,6 +41,56 @@ def test_state_stores_use_temp_state_dir(tmp_path, monkeypatch):
     assert "`demo`" in recent_one
 
 
+def test_task_lifecycle_transitions_and_details(tmp_path, monkeypatch):
+    from agent.state import task_store
+
+    state_dir = tmp_path / ".agent_state"
+    monkeypatch.setattr(task_store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(task_store, "TASKS_FILE", state_dir / "tasks.json")
+
+    created = task_store.create_task("verify structure", "run focused checks")
+    task_id = created.split(":", 1)[0].removeprefix("Created ")
+
+    assert "Status: pending" in task_store.get_task_details(task_id)
+    assert task_store.complete_task(task_id, "too early") == f"Cannot move {task_id} from pending to done"
+
+    assert "from pending to in_progress" in task_store.start_task(task_id)
+    assert "from in_progress to failed" in task_store.fail_task(task_id, "tests failed")
+    assert "Error: tests failed" in task_store.get_task_details(task_id)
+
+    assert "from failed to in_progress" in task_store.retry_task(task_id)
+    retried_details = task_store.get_task_details(task_id)
+    assert "Last error: tests failed" in retried_details
+    assert "Error: tests failed" not in retried_details
+
+    assert "from in_progress to done" in task_store.complete_task(task_id, "20 tests passed")
+    completed_details = task_store.get_task_details(task_id)
+    assert "Status: done" in completed_details
+    assert "Result: 20 tests passed" in completed_details
+    assert task_store.retry_task(task_id) == f"Cannot move {task_id} from done to in_progress"
+
+    cancelled_id = task_store.create_task("obsolete task").split(":", 1)[0].removeprefix("Created ")
+    assert "from pending to cancelled" in task_store.cancel_task(cancelled_id, "not needed")
+    assert "Cancel reason: not needed" in task_store.get_task_details(cancelled_id)
+    assert "[cancelled] obsolete task" in task_store.list_tasks()
+
+
+def test_task_lifecycle_rejects_invalid_input(tmp_path, monkeypatch):
+    from agent.state import task_store
+
+    state_dir = tmp_path / ".agent_state"
+    monkeypatch.setattr(task_store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(task_store, "TASKS_FILE", state_dir / "tasks.json")
+
+    assert task_store.create_task("   ") == "Task title cannot be empty"
+    assert task_store.get_task_details("task_404") == "Task not found: task_404"
+
+    task_id = task_store.create_task("failure check").split(":", 1)[0].removeprefix("Created ")
+    task_store.start_task(task_id)
+    assert task_store.fail_task(task_id, "   ") == "Task failure reason cannot be empty"
+    assert task_store.update_task(task_id, "failed") == "Task failure reason cannot be empty"
+
+
 def test_planning_create_and_execute_count_step(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "sample.py").write_text("print('hello')", encoding="utf-8")

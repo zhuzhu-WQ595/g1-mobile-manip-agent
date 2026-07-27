@@ -115,6 +115,12 @@ remember this project prefers small focused edits
 memory
 create task add edit_file tests
 tasks
+start task_123
+complete task_123 :: all tests passed
+fail task_123 :: tests failed
+retry task_123
+cancel task_123 :: no longer needed
+task task_123
 skills
 search README
 append notes/example.txt :: hello

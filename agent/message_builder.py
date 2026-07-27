@@ -26,8 +26,14 @@ def assistant_message(text: str) -> Message:
     return {"role": "assistant", "content": [text_part(text)]}
 
 
-def assistant_tool_call_message(tool_calls: list[dict[str, Any]]) -> Message:
-    return {"role": "assistant", "content": [], "tool_calls": tool_calls}
+def assistant_tool_call_message(
+    tool_calls: list[dict[str, Any]],
+    reasoning_content: str | None = None,
+) -> Message:
+    message: Message = {"role": "assistant", "content": [], "tool_calls": tool_calls}
+    if reasoning_content is not None:
+        message["reasoning_content"] = reasoning_content
+    return message
 
 
 def tool_result_message(tool_call_id: str, name: str, result: str) -> Message:

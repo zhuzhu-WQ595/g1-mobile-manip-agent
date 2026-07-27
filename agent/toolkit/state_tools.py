@@ -22,7 +22,17 @@ from ..state.approval_store import (
 from ..state.event_log import read_recent_events
 from ..state.memory_store import clear_memory, load_memory, remember
 from ..state.skill_store import list_skills, read_skill
-from ..state.task_store import create_task, list_tasks, update_task
+from ..state.task_store import (
+    cancel_task,
+    complete_task,
+    create_task,
+    fail_task,
+    get_task_details,
+    list_tasks,
+    retry_task,
+    start_task,
+    update_task,
+)
 
 from .schema import ToolHandler, schema
 
@@ -39,9 +49,38 @@ STATE_TOOL_SCHEMAS: list[dict[str, object]] = [
     ),
     schema("list_tasks", "List local tasks.", {}, []),
     schema(
+        "get_task_details",
+        "Get the status, timestamps, result, and failure or cancellation details for one task.",
+        {"task_id": {"type": "string"}},
+        ["task_id"],
+    ),
+    schema("start_task", "Start a pending task.", {"task_id": {"type": "string"}}, ["task_id"]),
+    schema(
+        "complete_task",
+        "Complete an in-progress task and optionally save its result.",
+        {"task_id": {"type": "string"}, "result": {"type": "string"}},
+        ["task_id"],
+    ),
+    schema(
+        "fail_task",
+        "Mark an in-progress task as failed and save the failure reason.",
+        {"task_id": {"type": "string"}, "error": {"type": "string"}},
+        ["task_id", "error"],
+    ),
+    schema("retry_task", "Retry a failed task.", {"task_id": {"type": "string"}}, ["task_id"]),
+    schema(
+        "cancel_task",
+        "Cancel a pending, in-progress, or failed task and optionally save the reason.",
+        {"task_id": {"type": "string"}, "reason": {"type": "string"}},
+        ["task_id"],
+    ),
+    schema(
         "update_task",
-        "Update a task status to pending, in_progress, or done.",
-        {"task_id": {"type": "string"}, "status": {"type": "string"}},
+        "Compatibility entry for a validated task status transition. Prefer the explicit lifecycle tools.",
+        {
+            "task_id": {"type": "string"},
+            "status": {"type": "string", "enum": ["pending", "in_progress", "done", "failed", "cancelled"]},
+        },
         ["task_id", "status"],
     ),
     schema("list_skills", "List built-in skill notes.", {}, []),
@@ -166,6 +205,12 @@ STATE_TOOL_HANDLERS: dict[str, ToolHandler] = {
     "clear_memory": clear_memory,
     "create_task": create_task,
     "list_tasks": list_tasks,
+    "get_task_details": get_task_details,
+    "start_task": start_task,
+    "complete_task": complete_task,
+    "fail_task": fail_task,
+    "retry_task": retry_task,
+    "cancel_task": cancel_task,
     "update_task": update_task,
     "list_skills": list_skills,
     "read_skill": read_skill,

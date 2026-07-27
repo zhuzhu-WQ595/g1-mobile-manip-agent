@@ -90,7 +90,94 @@ def requested_exact_tool(text: str) -> dict[str, Any] | None:
     return None
 
 
+def requested_task_action(text: str) -> dict[str, Any] | None:
+    stripped = text.strip()
+    lowered = stripped.lower()
+    task_id = r"<?(task_\d+)>?"
+
+    match = re.match(r"^create task\s+(.+?)(?:\s+::\s*(.*))?$", stripped, flags=re.DOTALL | re.IGNORECASE)
+    if match:
+        return {
+            "tool": "create_task",
+            "arguments": {"title": match.group(1).strip(), "detail": (match.group(2) or "").strip()},
+        }
+
+    match = re.match(r"^(?:创建任务|新建任务)\s+(.+?)(?:\s+::\s*(.*))?$", stripped, flags=re.DOTALL)
+    if match:
+        return {
+            "tool": "create_task",
+            "arguments": {"title": match.group(1).strip(), "detail": (match.group(2) or "").strip()},
+        }
+
+    if lowered in {"tasks", "list tasks"} or stripped in {"任务", "任务列表", "列出任务"}:
+        return {"tool": "list_tasks", "arguments": {}}
+
+    patterns = [
+        (rf"^(?:task details|show task|task)\s+{task_id}$", "get_task_details", None, re.IGNORECASE),
+        (rf"^查看(?:任务)?\s*{task_id}\s*(?:的)?详情$", "get_task_details", None, 0),
+        (rf"^start(?: task)?\s+{task_id}$", "start_task", None, re.IGNORECASE),
+        (rf"^开始(?:任务)?\s*{task_id}$", "start_task", None, 0),
+        (rf"^retry(?: task)?\s+{task_id}$", "retry_task", None, re.IGNORECASE),
+        (rf"^重试(?:任务)?\s*{task_id}$", "retry_task", None, 0),
+    ]
+    for pattern, tool, _, flags in patterns:
+        match = re.match(pattern, stripped, flags=flags)
+        if match:
+            return {"tool": tool, "arguments": {"task_id": match.group(1).lower()}}
+
+    match = re.match(
+        rf"^complete(?: task)?\s+{task_id}(?:\s+::\s*(.*))?$",
+        stripped,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    if not match:
+        match = re.match(rf"^完成(?:任务)?\s*{task_id}(?:\s+::\s*(.*))?$", stripped, flags=re.DOTALL)
+    if match:
+        return {
+            "tool": "complete_task",
+            "arguments": {"task_id": match.group(1).lower(), "result": (match.group(2) or "").strip()},
+        }
+
+    match = re.match(
+        rf"^fail(?: task)?\s+{task_id}\s+::\s*(.+)$",
+        stripped,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    if not match:
+        match = re.match(rf"^标记(?:任务)?\s*{task_id}\s*失败\s*::\s*(.+)$", stripped, flags=re.DOTALL)
+    if match:
+        return {
+            "tool": "fail_task",
+            "arguments": {"task_id": match.group(1).lower(), "error": match.group(2).strip()},
+        }
+
+    match = re.match(
+        rf"^cancel(?: task)?\s+{task_id}(?:\s+::\s*(.*))?$",
+        stripped,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    if not match:
+        match = re.match(rf"^取消(?:任务)?\s*{task_id}(?:\s+::\s*(.*))?$", stripped, flags=re.DOTALL)
+    if match:
+        return {
+            "tool": "cancel_task",
+            "arguments": {"task_id": match.group(1).lower(), "reason": (match.group(2) or "").strip()},
+        }
+
+    return None
+
+
 def forced_plan_tool_calls(text: str) -> list[dict[str, Any]] | None:
+    requested_task = requested_task_action(text)
+    if requested_task is not None:
+        return [
+            {
+                "id": "forced_task_call_1",
+                "name": requested_task["tool"],
+                "arguments": requested_task["arguments"],
+            }
+        ]
+
     exact_tool = requested_exact_tool(text)
     if exact_tool is not None:
         return [
@@ -150,6 +237,14 @@ def forced_plan_tool_calls(text: str) -> list[dict[str, Any]] | None:
 
 
 def check_user_requested_arguments(name: str, arguments: dict[str, Any], user_text: str) -> None:
+    requested_task = requested_task_action(user_text)
+    if requested_task is not None:
+        if name != requested_task["tool"]:
+            raise PermissionError(f"This request must use {requested_task['tool']} only.")
+        if arguments != requested_task["arguments"]:
+            raise PermissionError("Tool call changed the requested task arguments")
+        return
+
     exact_tool = requested_exact_tool(user_text)
     if exact_tool is not None:
         if name != exact_tool["tool"]:
@@ -216,6 +311,8 @@ def check_user_requested_arguments(name: str, arguments: dict[str, Any], user_te
 
 
 def should_stop_after_tool_error(name: str, result: str, user_text: str) -> bool:
+    if requested_task_action(user_text) is not None:
+        return True
     if requested_exact_tool(user_text) is not None:
         return True
     if requested_blocked_diagnosis(user_text) is not None:
@@ -278,7 +375,11 @@ class Agent:
                 response = self.model.complete(self.messages, TOOL_SCHEMAS, system_prompt=system_prompt)##调用model_adapter中的complete函数
                 forced_tool_calls = forced_plan_tool_calls(text)
                 if forced_tool_calls is not None:
-                    response = {"type": "tool_calls", "tool_calls": forced_tool_calls}
+                    response = {
+                        "type": "tool_calls",
+                        "tool_calls": forced_tool_calls,
+                        "reasoning_content": response.get("reasoning_content"),
+                    }
                 
                 # 不需要工具，直接返回文本
                 if response["type"] == "message":
@@ -288,7 +389,9 @@ class Agent:
                 
                 # 需要工具调用
                 tool_calls = response.get("tool_calls", [])
-                self.messages.append(assistant_tool_call_message(tool_calls))
+                self.messages.append(
+                    assistant_tool_call_message(tool_calls, response.get("reasoning_content"))
+                )
                 
                 #遍历每个工具调用
                 for call in tool_calls:
@@ -311,6 +414,20 @@ class Agent:
                     self.last_events.append(event)
                     record_tool_event(event)
                     self.messages.append(tool_result_message(call["id"], name, result))#把工具结果写回 messages，调用message_builder中的tool_result_message函数
+                    requested_task = requested_task_action(text)
+                    if event["status"] == "ok" and requested_task is not None and name == requested_task["tool"]:
+                        summary_prompt = build_system_prompt(self.messages) + (
+                            "\n\nThe explicitly requested task tool has completed for this user turn. "
+                            "Do not call any more tools. Explain the actual tool result naturally in the user's language. "
+                            "State the resulting task status and the next valid action, but do not claim that unexecuted actions occurred."
+                        )
+                        summary = self.model.complete(self.messages, [], system_prompt=summary_prompt)
+                        if summary["type"] == "message":
+                            answer = str(summary.get("text", ""))
+                        else:
+                            answer = f"任务操作已经完成：{result}\n\n本轮不会继续执行其他任务状态操作。"
+                        self.messages.append(assistant_message(answer))
+                        return {"answer": answer, "events": self.last_events}
                     if stop_after_error:
                         answer = final_tool_error_message(result)
                         self.messages.append(assistant_message(answer))

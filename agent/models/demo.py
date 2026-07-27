@@ -187,11 +187,82 @@ class DemoModel:
         if lowered in {"memory", "read memory"}:
             return self._tool("read_memory", {})
 
-        if lowered.startswith("create task "):
-            return self._tool("create_task", {"title": user_text[12:].strip(), "detail": ""})
+        match = re.match(r"^create task\s+(.+?)(?:\s+::\s*(.*))?$", user_text, flags=re.DOTALL | re.IGNORECASE)
+        if match:
+            return self._tool(
+                "create_task",
+                {"title": match.group(1).strip(), "detail": (match.group(2) or "").strip()},
+            )
 
-        if lowered in {"tasks", "list tasks"}:
+        match = re.match(r"^(?:创建任务|新建任务)\s+(.+?)(?:\s+::\s*(.*))?$", user_text, flags=re.DOTALL)
+        if match:
+            return self._tool(
+                "create_task",
+                {"title": match.group(1).strip(), "detail": (match.group(2) or "").strip()},
+            )
+
+        if lowered in {"tasks", "list tasks"} or user_text in {"任务", "任务列表", "列出任务"}:
             return self._tool("list_tasks", {})
+
+        match = re.match(r"^(?:task details|show task|task)\s+(task_\d+)$", lowered)
+        if match:
+            return self._tool("get_task_details", {"task_id": match.group(1)})
+
+        match = re.match(r"^查看(?:任务)?\s*(task_\d+)\s*(?:的)?详情$", user_text)
+        if match:
+            return self._tool("get_task_details", {"task_id": match.group(1)})
+
+        match = re.match(r"^start(?: task)?\s+(task_\d+)$", lowered)
+        if match:
+            return self._tool("start_task", {"task_id": match.group(1)})
+
+        match = re.match(r"^开始(?:任务)?\s*(task_\d+)$", user_text)
+        if match:
+            return self._tool("start_task", {"task_id": match.group(1)})
+
+        match = re.match(r"^complete(?: task)?\s+(task_\d+)(?:\s+::\s*(.*))?$", user_text, flags=re.DOTALL | re.IGNORECASE)
+        if match:
+            return self._tool(
+                "complete_task",
+                {"task_id": match.group(1).lower(), "result": (match.group(2) or "").strip()},
+            )
+
+        match = re.match(r"^完成(?:任务)?\s*(task_\d+)(?:\s+::\s*(.*))?$", user_text, flags=re.DOTALL)
+        if match:
+            return self._tool(
+                "complete_task",
+                {"task_id": match.group(1), "result": (match.group(2) or "").strip()},
+            )
+
+        match = re.match(r"^fail(?: task)?\s+(task_\d+)\s+::\s*(.+)$", user_text, flags=re.DOTALL | re.IGNORECASE)
+        if match:
+            return self._tool("fail_task", {"task_id": match.group(1).lower(), "error": match.group(2).strip()})
+
+        match = re.match(r"^标记(?:任务)?\s*(task_\d+)\s*失败\s*::\s*(.+)$", user_text, flags=re.DOTALL)
+        if match:
+            return self._tool("fail_task", {"task_id": match.group(1), "error": match.group(2).strip()})
+
+        match = re.match(r"^retry(?: task)?\s+(task_\d+)$", lowered)
+        if match:
+            return self._tool("retry_task", {"task_id": match.group(1)})
+
+        match = re.match(r"^重试(?:任务)?\s*(task_\d+)$", user_text)
+        if match:
+            return self._tool("retry_task", {"task_id": match.group(1)})
+
+        match = re.match(r"^cancel(?: task)?\s+(task_\d+)(?:\s+::\s*(.*))?$", user_text, flags=re.DOTALL | re.IGNORECASE)
+        if match:
+            return self._tool(
+                "cancel_task",
+                {"task_id": match.group(1).lower(), "reason": (match.group(2) or "").strip()},
+            )
+
+        match = re.match(r"^取消(?:任务)?\s*(task_\d+)(?:\s+::\s*(.*))?$", user_text, flags=re.DOTALL)
+        if match:
+            return self._tool(
+                "cancel_task",
+                {"task_id": match.group(1), "reason": (match.group(2) or "").strip()},
+            )
 
         if lowered in {"skills", "list skills"}:
             return self._tool("list_skills", {})
@@ -217,7 +288,9 @@ class DemoModel:
                 "create plan demo :: step one; step two, suggest next step for plan_123, execute next step of plan_123, plans, "
                 "resolve blocked step 1 of plan_123 :: manual result, "
                 "diagnose blocked step 1 of plan_123, "
-                "save experiment note :: done, remember xxx, tasks, tool events, search xxx, or python version."
+                "save experiment note :: done, remember xxx, tasks, start task_123, "
+                "complete task_123 :: result, fail task_123 :: reason, retry task_123, "
+                "cancel task_123, task task_123, tool events, search xxx, or python version."
             ),
         }
 

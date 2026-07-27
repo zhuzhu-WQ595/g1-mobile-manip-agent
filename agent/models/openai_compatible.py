@@ -39,9 +39,10 @@ class OpenAICompatibleChatModel:
         payload = {
             "model": self.model,
             "messages": self._to_chat_messages(messages, system_prompt),
-            "tools": tools,
-            "tool_choice": "auto",
         }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
         request = urllib.request.Request(
             url=f"{self.base_url}/chat/completions",
             data=json.dumps(payload).encode("utf-8"),
@@ -59,10 +60,12 @@ class OpenAICompatibleChatModel:
             raise RuntimeError(f"Model API error {exc.code}: {body}") from exc
 
         message = data["choices"][0]["message"]
+        reasoning_content = message.get("reasoning_content")
         tool_calls = message.get("tool_calls") or []
         if tool_calls:
             return {
                 "type": "tool_calls",
+                "reasoning_content": reasoning_content,
                 "tool_calls": [
                     {
                         "id": call["id"],
@@ -72,7 +75,11 @@ class OpenAICompatibleChatModel:
                     for call in tool_calls
                 ],
             }
-        return {"type": "message", "text": message.get("content") or ""}
+        return {
+            "type": "message",
+            "text": message.get("content") or "",
+            "reasoning_content": reasoning_content,
+        }
 
     def _to_chat_messages(self, messages: list[dict[str, Any]], system_prompt: str | None = None) -> list[dict[str, Any]]:
         chat_messages: list[dict[str, Any]] = [{"role": "system", "content": system_prompt or SYSTEM_PROMPT}]
@@ -93,11 +100,10 @@ class OpenAICompatibleChatModel:
                     j += 1
                 found_ids = {str(tool.get("tool_call_id", "")) for tool in tool_messages}
                 if expected_ids and expected_ids.issubset(found_ids):
-                    chat_messages.append(
-                        {
-                            "role": "assistant",
-                            "content": None,
-                            "tool_calls": [
+                    assistant_tool_message = {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
                                 {
                                     "id": call["id"],
                                     "type": "function",
@@ -108,8 +114,10 @@ class OpenAICompatibleChatModel:
                                 }
                                 for call in message["tool_calls"]
                             ],
-                        }
-                    )
+                    }
+                    if message.get("reasoning_content") is not None:
+                        assistant_tool_message["reasoning_content"] = message["reasoning_content"]
+                    chat_messages.append(assistant_tool_message)
                     for tool in tool_messages:
                         if str(tool.get("tool_call_id", "")) in expected_ids:
                             chat_messages.append(

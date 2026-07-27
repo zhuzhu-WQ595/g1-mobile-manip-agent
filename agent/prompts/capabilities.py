@@ -15,7 +15,7 @@ CAPABILITIES = [
     "List approval history and inspect one approval with list_approval_history and get_approval_details.",
     "Create, inspect, suggest, execute one supported step, execute the next pending step, diagnose blocked steps, resolve blocked steps, and update multi-step plans with create_plan, list_plans, suggest_next_plan_step, execute_plan_step, execute_next_plan_step, diagnose_blocked_step, resolve_blocked_step, and update_plan_step.",
     "Save and read simple long-term memory.",
-    "Create and update local tasks.",
+    "Create, inspect, start, complete, fail, retry, and cancel local tasks with validated lifecycle transitions.",
     "Read built-in skill notes.",
     "Read recent tool event logs with get_recent_tool_events.",
     "Run only a strict whitelist of safe commands.",
