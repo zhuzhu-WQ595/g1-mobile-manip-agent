@@ -90,10 +90,64 @@ def requested_exact_tool(text: str) -> dict[str, Any] | None:
     return None
 
 
+TASK_REF_PATTERN = (
+    r"<?("
+    r"task_\d+|"
+    r"current(?: task)?|latest(?: task)?|last(?: task)?|recent(?: task)?|"
+    r"当前任务|当前|最新任务|最新|最近任务|最近|刚才的任务|刚才那个任务|上一个任务"
+    r")>?"
+)
+
+
+def clean_task_ref(value: str) -> str:
+    return value.strip().strip("<>").lower()
+
+
 def requested_task_action(text: str) -> dict[str, Any] | None:
     stripped = text.strip()
     lowered = stripped.lower()
-    task_id = r"<?(task_\d+)>?"
+    task_id = TASK_REF_PATTERN
+
+    match = re.match(r"^(?:创建任务|新建任务)\s+(.+?)(?:\s+::\s*(.*))?$", stripped, flags=re.DOTALL)
+    if match:
+        return {
+            "tool": "create_task",
+            "arguments": {"title": match.group(1).strip(), "detail": (match.group(2) or "").strip()},
+        }
+
+    plan_patterns = [
+        (rf"^为(?:任务)?\s*{task_id}\s*创建计划\s*::\s*(.+)$", "create_task_plan"),
+        (rf"^验证(?:任务)?\s*{task_id}\s*(?:的)?计划$", "validate_task_plan"),
+        (rf"^查看(?:任务)?\s*{task_id}\s*(?:的)?计划$", "get_task_plan"),
+    ]
+    for pattern, tool in plan_patterns:
+        match = re.match(pattern, stripped, flags=re.DOTALL)
+        if not match:
+            continue
+        arguments: dict[str, Any] = {"task_id": clean_task_ref(match.group(1))}
+        if tool == "create_task_plan":
+            arguments["steps"] = [step.strip() for step in match.group(2).split(";") if step.strip()]
+        return {"tool": tool, "arguments": arguments}
+
+    lifecycle_patterns = [
+        (rf"^查看(?:任务)?\s*{task_id}\s*(?:的)?详情$", "get_task_details", None),
+        (rf"^开始(?:任务)?\s*{task_id}$", "start_task", None),
+        (rf"^重试(?:任务)?\s*{task_id}$", "retry_task", None),
+        (rf"^完成(?:任务)?\s*{task_id}(?:\s+::\s*(.*))?$", "complete_task", "result"),
+        (rf"^标记(?:任务)?\s*{task_id}\s*失败\s*::\s*(.+)$", "fail_task", "error"),
+        (rf"^取消(?:任务)?\s*{task_id}(?:\s+::\s*(.*))?$", "cancel_task", "reason"),
+    ]
+    for pattern, tool, field in lifecycle_patterns:
+        match = re.match(pattern, stripped, flags=re.DOTALL)
+        if not match:
+            continue
+        arguments = {"task_id": clean_task_ref(match.group(1))}
+        if field:
+            arguments[field] = (match.group(2) or "").strip()
+        return {"tool": tool, "arguments": arguments}
+
+    if stripped in {"任务", "任务列表", "列出任务"}:
+        return {"tool": "list_tasks", "arguments": {}}
 
     match = re.match(
         rf"^create task plan\s+{task_id}\s+::\s*(.+)$",
@@ -106,14 +160,18 @@ def requested_task_action(text: str) -> dict[str, Any] | None:
         steps = [step.strip() for step in match.group(2).split(";") if step.strip()]
         return {
             "tool": "create_task_plan",
-            "arguments": {"task_id": match.group(1).lower(), "steps": steps},
+            "arguments": {"task_id": clean_task_ref(match.group(1)), "steps": steps},
         }
+
+    match = re.match(rf"^validate task plan\s+{task_id}$", stripped, flags=re.IGNORECASE)
+    if match:
+        return {"tool": "validate_task_plan", "arguments": {"task_id": clean_task_ref(match.group(1))}}
 
     match = re.match(rf"^(?:task plan|show task plan)\s+{task_id}$", stripped, flags=re.IGNORECASE)
     if not match:
         match = re.match(rf"^查看(?:任务)?\s*{task_id}\s*(?:的)?计划$", stripped)
     if match:
-        return {"tool": "get_task_plan", "arguments": {"task_id": match.group(1).lower()}}
+        return {"tool": "get_task_plan", "arguments": {"task_id": clean_task_ref(match.group(1))}}
 
     match = re.match(r"^create task\s+(.+?)(?:\s+::\s*(.*))?$", stripped, flags=re.DOTALL | re.IGNORECASE)
     if match:
@@ -143,7 +201,7 @@ def requested_task_action(text: str) -> dict[str, Any] | None:
     for pattern, tool, _, flags in patterns:
         match = re.match(pattern, stripped, flags=flags)
         if match:
-            return {"tool": tool, "arguments": {"task_id": match.group(1).lower()}}
+            return {"tool": tool, "arguments": {"task_id": clean_task_ref(match.group(1))}}
 
     match = re.match(
         rf"^complete(?: task)?\s+{task_id}(?:\s+::\s*(.*))?$",
@@ -155,7 +213,7 @@ def requested_task_action(text: str) -> dict[str, Any] | None:
     if match:
         return {
             "tool": "complete_task",
-            "arguments": {"task_id": match.group(1).lower(), "result": (match.group(2) or "").strip()},
+            "arguments": {"task_id": clean_task_ref(match.group(1)), "result": (match.group(2) or "").strip()},
         }
 
     match = re.match(
@@ -168,7 +226,7 @@ def requested_task_action(text: str) -> dict[str, Any] | None:
     if match:
         return {
             "tool": "fail_task",
-            "arguments": {"task_id": match.group(1).lower(), "error": match.group(2).strip()},
+            "arguments": {"task_id": clean_task_ref(match.group(1)), "error": match.group(2).strip()},
         }
 
     match = re.match(
@@ -181,7 +239,7 @@ def requested_task_action(text: str) -> dict[str, Any] | None:
     if match:
         return {
             "tool": "cancel_task",
-            "arguments": {"task_id": match.group(1).lower(), "reason": (match.group(2) or "").strip()},
+            "arguments": {"task_id": clean_task_ref(match.group(1)), "reason": (match.group(2) or "").strip()},
         }
 
     return None
@@ -435,11 +493,14 @@ class Agent:
                     record_tool_event(event)
                     self.messages.append(tool_result_message(call["id"], name, result))#把工具结果写回 messages，调用message_builder中的tool_result_message函数
                     requested_task = requested_task_action(text)
-                    if event["status"] == "ok" and requested_task is not None and name == requested_task["tool"]:
+                    if event["status"] == "ok" and (
+                        (requested_task is not None and name == requested_task["tool"])
+                        or name == "create_task_plan"
+                    ):
                         summary_prompt = build_system_prompt(self.messages) + (
                             "\n\nThe explicitly requested task tool has completed for this user turn. "
                             "Do not call any more tools. Explain the actual tool result naturally in the user's language. "
-                            "State the resulting task status and the next valid action, but do not claim that unexecuted actions occurred."
+                            "State the resulting task or plan status and the next valid action, but do not claim that unexecuted actions occurred."
                         )
                         summary = self.model.complete(self.messages, [], system_prompt=summary_prompt)
                         if summary["type"] == "message":

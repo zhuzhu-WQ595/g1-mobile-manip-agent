@@ -37,6 +37,7 @@ def test_tool_registry_has_matching_handlers_and_schemas():
     assert "cancel_task" in handler_names
     assert "create_task_plan" in handler_names
     assert "get_task_plan" in handler_names
+    assert "validate_task_plan" in handler_names
     assert "edit_file" not in handler_names
 
 
@@ -177,6 +178,25 @@ def test_demo_model_routes_task_lifecycle():
     assert details["tool_calls"][0]["name"] == "get_task_details"
 
 
+def test_demo_model_routes_task_aliases():
+    model = DemoModel()
+
+    start = model.complete([user_message("开始当前任务")], tools=[])
+    complete = model.complete([user_message("完成最新任务 :: 全部通过")], tools=[])
+    plan = model.complete([user_message("为当前任务创建计划 :: read README.md; count python files")], tools=[])
+
+    assert start["tool_calls"][0] == {
+        "id": "demo_call_1",
+        "name": "start_task",
+        "arguments": {"task_id": "当前任务"},
+    }
+    assert complete["tool_calls"][0]["arguments"] == {"task_id": "最新任务", "result": "全部通过"}
+    assert plan["tool_calls"][0]["arguments"] == {
+        "task_id": "当前任务",
+        "steps": ["read README.md", "count python files"],
+    }
+
+
 def test_demo_model_routes_task_plan_linking():
     model = DemoModel()
     create = model.complete(
@@ -184,6 +204,7 @@ def test_demo_model_routes_task_plan_linking():
         tools=[],
     )
     show = model.complete([user_message("查看任务 task_123 的计划")], tools=[])
+    validate = model.complete([user_message("validate task plan task_123")], tools=[])
 
     assert create["tool_calls"][0]["name"] == "create_task_plan"
     assert create["tool_calls"][0]["arguments"] == {
@@ -192,6 +213,7 @@ def test_demo_model_routes_task_plan_linking():
     }
     assert show["tool_calls"][0]["name"] == "get_task_plan"
     assert show["tool_calls"][0]["arguments"] == {"task_id": "task_123"}
+    assert validate["tool_calls"][0]["name"] == "validate_task_plan"
 
 
 def test_recent_tool_events_permission_is_allowed():
@@ -207,6 +229,7 @@ def test_recent_tool_events_permission_is_allowed():
     check_tool_call("cancel_task", {"task_id": "task_123"})
     check_tool_call("create_task_plan", {"task_id": "task_123", "steps": ["read README.md"]})
     check_tool_call("get_task_plan", {"task_id": "task_123"})
+    check_tool_call("validate_task_plan", {"task_id": "task_123"})
 
 
 def test_edit_approval_permission_stays_inside_workspace():
@@ -279,6 +302,79 @@ def test_explicit_task_request_executes_only_one_action(tmp_path, monkeypatch):
     }
 
 
+def test_task_action_parser_accepts_current_task_aliases():
+    from agent.agent_loop import requested_task_action
+
+    assert requested_task_action("开始当前任务") == {
+        "tool": "start_task",
+        "arguments": {"task_id": "当前任务"},
+    }
+    assert requested_task_action("完成最新任务 :: 全部通过") == {
+        "tool": "complete_task",
+        "arguments": {"task_id": "最新任务", "result": "全部通过"},
+    }
+    assert requested_task_action("标记刚才那个任务失败 :: 测试失败") == {
+        "tool": "fail_task",
+        "arguments": {"task_id": "刚才那个任务", "error": "测试失败"},
+    }
+    assert requested_task_action("为当前任务创建计划 :: read README.md; count python files") == {
+        "tool": "create_task_plan",
+        "arguments": {"task_id": "当前任务", "steps": ["read README.md", "count python files"]},
+    }
+
+
+def test_model_can_generate_task_plan_but_cannot_execute_it_in_same_turn(tmp_path, monkeypatch):
+    from agent.agent_loop import Agent
+    from agent.planning import store
+    from agent.state import task_store
+
+    state_dir = tmp_path / ".agent_state"
+    monkeypatch.setattr(store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(store, "PLANS_FILE", state_dir / "plans.json")
+    monkeypatch.setattr(task_store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(task_store, "TASKS_FILE", state_dir / "tasks.json")
+    task_id = task_store.create_task("inspect project", "read and count").split(":", 1)[0].removeprefix("Created ")
+
+    class PlanGeneratingModel:
+        def __init__(self):
+            self.calls = 0
+            self.tool_counts = []
+
+        def complete(self, messages, tools, system_prompt=None):
+            self.calls += 1
+            self.tool_counts.append(len(tools))
+            if self.calls == 1:
+                return {
+                    "type": "tool_calls",
+                    "tool_calls": [{"id": "details", "name": "get_task_details", "arguments": {"task_id": task_id}}],
+                }
+            if self.calls == 2:
+                return {
+                    "type": "tool_calls",
+                    "tool_calls": [
+                        {
+                            "id": "plan",
+                            "name": "create_task_plan",
+                            "arguments": {
+                                "task_id": task_id,
+                                "steps": ["read README.md", "count python files", "summarize results"],
+                            },
+                        }
+                    ],
+                }
+            return {"type": "message", "text": "计划已生成，尚未执行。"}
+
+    model = PlanGeneratingModel()
+    trace = Agent(model).run_turn_with_trace(f"请为任务 {task_id} 自动生成计划")
+
+    assert [event["tool"] for event in trace["events"]] == ["get_task_details", "create_task_plan"]
+    assert model.tool_counts[-1] == 0
+    assert trace["answer"] == "计划已生成，尚未执行。"
+    plan = store.load_plans()[0]
+    assert [step["status"] for step in plan["steps"]] == ["pending", "pending", "pending"]
+    assert [step["executor"]["mode"] for step in plan["steps"]] == ["tool", "tool", "summary"]
+
+
 def test_system_prompt_contains_key_sections():
     assert "Current capabilities:" in SYSTEM_PROMPT
     assert "Robot-control rules:" in SYSTEM_PROMPT
@@ -295,5 +391,7 @@ def test_system_prompt_contains_key_sections():
     assert "fail_task" in SYSTEM_PROMPT
     assert "retry_task" in SYSTEM_PROMPT
     assert "cancel_task" in SYSTEM_PROMPT
+    assert "current, latest, last, recent" in SYSTEM_PROMPT
     assert "create_task_plan" in SYSTEM_PROMPT
     assert "get_task_plan" in SYSTEM_PROMPT
+    assert "validate_task_plan" in SYSTEM_PROMPT

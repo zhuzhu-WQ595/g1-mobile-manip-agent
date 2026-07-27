@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .step_mapping import describe_step_mapping
+
 
 def format_plan(plan: dict[str, Any]) -> str:
     rows = [f"{plan['id']}: {plan['title']}"]
@@ -9,6 +11,7 @@ def format_plan(plan: dict[str, Any]) -> str:
         rows.append(f"  linked task: {plan['task_id']}")
     for step in plan.get("steps", []):
         rows.append(f"  {step['index']}. [{step['status']}] {step['content']}")
+        rows.append(f"     executor: {describe_step_mapping(step)}")
         if step.get("result"):
             rows.append(f"     result: {result_preview(str(step['result']))}")
         if step.get("error"):

@@ -51,6 +51,7 @@ SAFE_STATE_TOOLS = {
     "create_plan",
     "create_task_plan",
     "get_task_plan",
+    "validate_task_plan",
     "list_plans",
     "update_plan_step",
     "suggest_next_plan_step",

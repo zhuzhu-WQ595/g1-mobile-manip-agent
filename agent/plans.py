@@ -14,6 +14,7 @@ from .planning import (
     resolve_blocked_step,
     suggest_next_plan_step,
     update_plan_step,
+    validate_task_plan,
 )
 from .planning.formatter import format_plan as _format_plan
 from .planning.formatter import result_preview as _result_preview
@@ -34,4 +35,5 @@ __all__ = [
     "resolve_blocked_step",
     "suggest_next_plan_step",
     "update_plan_step",
+    "validate_task_plan",
 ]

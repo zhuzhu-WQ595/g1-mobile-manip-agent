@@ -40,11 +40,52 @@ def _find_task(tasks: list[dict[str, Any]], task_id: str) -> dict[str, Any] | No
     return next((task for task in tasks if task.get("id") == task_id), None)
 
 
+TASK_ALIASES = {
+    "current",
+    "current task",
+    "latest",
+    "latest task",
+    "last",
+    "last task",
+    "recent",
+    "recent task",
+    "当前任务",
+    "当前",
+    "最新任务",
+    "最新",
+    "最近任务",
+    "最近",
+    "刚才的任务",
+    "刚才那个任务",
+    "上一个任务",
+}
+
+
+def resolve_task_ref(task_ref: str) -> str:
+    value = task_ref.strip().strip("<>").lower()
+    if value not in TASK_ALIASES:
+        return value
+
+    tasks = _load()
+    if not tasks:
+        return value
+
+    non_terminal = [task for task in tasks if task.get("status") not in {"done", "cancelled"}]
+    candidates = non_terminal or tasks
+    _, current = max(
+        enumerate(candidates),
+        key=lambda item: (int(item[1].get("updated_at") or item[1].get("created_at") or 0), item[0]),
+    )
+    return str(current["id"])
+
+
 def get_task_record(task_id: str) -> dict[str, Any] | None:
+    task_id = resolve_task_ref(task_id)
     return _find_task(_load(), task_id)
 
 
 def attach_plan_to_task(task_id: str, plan_id: str) -> str:
+    task_id = resolve_task_ref(task_id)
     tasks = _load()
     task = _find_task(tasks, task_id)
     if task is None:
@@ -117,6 +158,7 @@ def cancel_task(task_id: str, reason: str = "") -> str:
 
 
 def _transition_task(task_id: str, status: str, **fields: str) -> str:
+    task_id = resolve_task_ref(task_id)
     tasks = _load()
     task = _find_task(tasks, task_id)
     if task is None:
@@ -159,6 +201,7 @@ def _transition_task(task_id: str, status: str, **fields: str) -> str:
 
 
 def get_task_details(task_id: str) -> str:
+    task_id = resolve_task_ref(task_id)
     task = _find_task(_load(), task_id)
     if task is None:
         return f"Task not found: {task_id}"

@@ -121,8 +121,16 @@ fail task_123 :: tests failed
 retry task_123
 cancel task_123 :: no longer needed
 task task_123
+start current task
+complete latest task :: all tests passed
+开始当前任务
+完成最新任务 :: 全部通过
 create task plan task_123 :: read README.md; count python files; summarize results
 task plan task_123
+validate task plan task_123
+为当前任务创建计划 :: read README.md; count python files; summarize results
+查看当前任务计划
+验证当前任务计划
 skills
 search README
 append notes/example.txt :: hello

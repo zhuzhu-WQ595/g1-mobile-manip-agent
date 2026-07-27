@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import time
 
-from ..state.task_store import attach_plan_to_task, get_task_record
+from ..state.task_store import attach_plan_to_task, get_task_record, resolve_task_ref
 from .formatter import format_plan, format_plan_progress
+from .step_mapping import describe_step_mapping, map_plan_step
 from .store import VALID_STEP_STATUS, load_plans, save_plans
 
 
@@ -16,6 +17,7 @@ def create_plan(title: str, steps: list[str] | str) -> str:
 
 
 def create_task_plan(task_id: str, steps: list[str] | str) -> str:
+    task_id = resolve_task_ref(task_id)
     task = get_task_record(task_id)
     if task is None:
         return f"Task not found: {task_id}"
@@ -33,6 +35,7 @@ def create_task_plan(task_id: str, steps: list[str] | str) -> str:
 
 
 def get_task_plan(task_id: str) -> str:
+    task_id = resolve_task_ref(task_id)
     task = get_task_record(task_id)
     if task is None:
         return f"Task not found: {task_id}"
@@ -43,6 +46,35 @@ def get_task_plan(task_id: str) -> str:
     if plan is None:
         return f"Linked plan not found: {plan_id}"
     return "\n".join([format_plan(plan), format_plan_progress(plan)])
+
+
+def validate_task_plan(task_id: str) -> str:
+    task_id = resolve_task_ref(task_id)
+    task = get_task_record(task_id)
+    if task is None:
+        return f"Task not found: {task_id}"
+    plan_id = task.get("plan_id")
+    if not plan_id:
+        return f"Task {task_id} has no linked plan"
+    plan = next((item for item in load_plans() if item.get("id") == plan_id), None)
+    if plan is None:
+        return f"Linked plan not found: {plan_id}"
+
+    steps = plan.get("steps", [])
+    automatic = sum(
+        (step.get("executor") or map_plan_step(str(step.get("content", "")))).get("mode") != "manual"
+        for step in steps
+    )
+    rows = [
+        f"Plan validation: {plan_id}",
+        f"Linked task: {task_id}",
+        f"Automatic steps: {automatic}/{len(steps)}",
+    ]
+    rows.extend(
+        f"{step.get('index')}. {describe_step_mapping(step)}"
+        for step in steps
+    )
+    return "\n".join(rows)
 
 
 def _build_plan(title: str, steps: list[str] | str, task_id: str | None = None) -> dict[str, object]:
@@ -61,7 +93,12 @@ def _build_plan(title: str, steps: list[str] | str, task_id: str | None = None) 
         "id": f"plan_{int(time.time() * 1000)}",
         "title": clean_title,
         "steps": [
-            {"index": index, "content": step, "status": "pending"}
+            {
+                "index": index,
+                "content": step,
+                "status": "pending",
+                "executor": map_plan_step(step),
+            }
             for index, step in enumerate(clean_steps, start=1)
         ],
         "created_at": int(time.time()),

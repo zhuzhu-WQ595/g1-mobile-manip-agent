@@ -75,6 +75,26 @@ def test_task_lifecycle_transitions_and_details(tmp_path, monkeypatch):
     assert "[cancelled] obsolete task" in task_store.list_tasks()
 
 
+def test_task_aliases_resolve_to_active_recent_task(tmp_path, monkeypatch):
+    from agent.state import task_store
+
+    state_dir = tmp_path / ".agent_state"
+    monkeypatch.setattr(task_store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(task_store, "TASKS_FILE", state_dir / "tasks.json")
+
+    first_id = task_store.create_task("first task").split(":", 1)[0].removeprefix("Created ")
+    second_id = task_store.create_task("second task").split(":", 1)[0].removeprefix("Created ")
+
+    assert task_store.resolve_task_ref("latest task") == second_id
+    assert task_store.resolve_task_ref("当前任务") == second_id
+    assert "from pending to in_progress" in task_store.start_task("current task")
+    assert "Status: in_progress" in task_store.get_task_details("最新任务")
+    assert "from in_progress to done" in task_store.complete_task("刚才那个任务", "done by alias")
+
+    assert task_store.resolve_task_ref("current task") == first_id
+    assert "Status: pending" in task_store.get_task_details(first_id)
+
+
 def test_task_lifecycle_rejects_invalid_input(tmp_path, monkeypatch):
     from agent.state import task_store
 
@@ -120,7 +140,7 @@ def test_task_plan_link_executes_in_order_without_auto_completing_task(tmp_path,
 
     from agent import permissions
     from agent.planning import store
-    from agent.planning.actions import create_task_plan, get_task_plan
+    from agent.planning.actions import create_task_plan, get_task_plan, validate_task_plan
     from agent.planning.executor import execute_next_plan_step, execute_plan_step
     from agent.state import task_store
 
@@ -136,6 +156,8 @@ def test_task_plan_link_executes_in_order_without_auto_completing_task(tmp_path,
     plan_id = created.split(":", 1)[0]
 
     assert f"linked task: {task_id}" in created
+    assert "executor: tool=read_file" in created
+    assert "Automatic steps: 3/3" in validate_task_plan(task_id)
     assert f"Plan ID: {plan_id}" in task_store.get_task_details(task_id)
     assert create_task_plan(task_id, ["another step"]) == f"Task {task_id} is already linked to {plan_id}"
     assert execute_next_plan_step(plan_id) == (
@@ -162,6 +184,47 @@ def test_task_plan_link_executes_in_order_without_auto_completing_task(tmp_path,
     task_store.complete_task(task_id, "plan verified")
     assert "Status: done" in task_store.get_task_details(task_id)
     assert "Progress: 3/3 done" in get_task_plan(task_id)
+
+
+def test_task_plan_validation_marks_unknown_steps_manual(tmp_path, monkeypatch):
+    from agent.planning import store
+    from agent.planning.actions import create_task_plan, validate_task_plan
+    from agent.planning.executor import execute_next_plan_step
+    from agent.state import task_store
+
+    state_dir = tmp_path / ".agent_state"
+    monkeypatch.setattr(store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(store, "PLANS_FILE", state_dir / "plans.json")
+    monkeypatch.setattr(task_store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(task_store, "TASKS_FILE", state_dir / "tasks.json")
+
+    task_id = task_store.create_task("manual plan").split(":", 1)[0].removeprefix("Created ")
+    created = create_task_plan(task_id, ["contact the project owner"])
+    plan_id = created.split(":", 1)[0]
+    validation = validate_task_plan(task_id)
+
+    assert "Automatic steps: 0/1" in validation
+    assert "manual=No supported automatic tool mapping" in validation
+    task_store.start_task(task_id)
+    blocked = execute_next_plan_step(plan_id)
+    assert "not supported for automatic execution" in blocked
+    assert "Progress: 0/1 done, 1 blocked" in blocked
+
+
+def test_chinese_plan_steps_map_to_supported_executors():
+    from agent.planning.step_mapping import map_plan_step
+
+    assert map_plan_step("读取 README.md") == {
+        "mode": "tool",
+        "tool": "read_file",
+        "arguments": {"path": "README.md"},
+    }
+    assert map_plan_step("统计 Python 文件") == {
+        "mode": "tool",
+        "tool": "count_files_by_extension",
+        "arguments": {"extension": ".py"},
+    }
+    assert map_plan_step("总结结果") == {"mode": "summary"}
 
 
 def _configure_approval_store(tmp_path, monkeypatch):

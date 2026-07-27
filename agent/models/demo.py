@@ -6,6 +6,19 @@ from typing import Any
 from .base import latest_tool_text, latest_user_text
 
 
+TASK_REF_PATTERN = (
+    r"<?("
+    r"task_\d+|"
+    r"current(?: task)?|latest(?: task)?|last(?: task)?|recent(?: task)?|"
+    r"当前任务|当前|最新任务|最新|最近任务|最近|刚才的任务|刚才那个任务|上一个任务"
+    r")>?"
+)
+
+
+def clean_task_ref(value: str) -> str:
+    return value.strip().strip("<>").lower()
+
+
 class DemoModel:
     """A deterministic local model for testing the agent loop without an API key."""
 
@@ -187,6 +200,48 @@ class DemoModel:
         if lowered in {"memory", "read memory"}:
             return self._tool("read_memory", {})
 
+        match = re.match(r"^(?:创建任务|新建任务)\s+(.+?)(?:\s+::\s*(.*))?$", user_text, flags=re.DOTALL)
+        if match:
+            return self._tool(
+                "create_task",
+                {"title": match.group(1).strip(), "detail": (match.group(2) or "").strip()},
+            )
+
+        task_ref = TASK_REF_PATTERN
+        plan_patterns = [
+            (rf"^为(?:任务)?\s*{task_ref}\s*创建计划\s*::\s*(.+)$", "create_task_plan"),
+            (rf"^验证(?:任务)?\s*{task_ref}\s*(?:的)?计划$", "validate_task_plan"),
+            (rf"^查看(?:任务)?\s*{task_ref}\s*(?:的)?计划$", "get_task_plan"),
+        ]
+        for pattern, tool in plan_patterns:
+            match = re.match(pattern, user_text, flags=re.DOTALL)
+            if not match:
+                continue
+            arguments: dict[str, Any] = {"task_id": clean_task_ref(match.group(1))}
+            if tool == "create_task_plan":
+                arguments["steps"] = [step.strip() for step in match.group(2).split(";") if step.strip()]
+            return self._tool(tool, arguments)
+
+        lifecycle_patterns = [
+            (rf"^查看(?:任务)?\s*{task_ref}\s*(?:的)?详情$", "get_task_details", None),
+            (rf"^开始(?:任务)?\s*{task_ref}$", "start_task", None),
+            (rf"^重试(?:任务)?\s*{task_ref}$", "retry_task", None),
+            (rf"^完成(?:任务)?\s*{task_ref}(?:\s+::\s*(.*))?$", "complete_task", "result"),
+            (rf"^标记(?:任务)?\s*{task_ref}\s*失败\s*::\s*(.+)$", "fail_task", "error"),
+            (rf"^取消(?:任务)?\s*{task_ref}(?:\s+::\s*(.*))?$", "cancel_task", "reason"),
+        ]
+        for pattern, tool, field in lifecycle_patterns:
+            match = re.match(pattern, user_text, flags=re.DOTALL)
+            if not match:
+                continue
+            arguments = {"task_id": clean_task_ref(match.group(1))}
+            if field:
+                arguments[field] = (match.group(2) or "").strip()
+            return self._tool(tool, arguments)
+
+        if user_text in {"任务", "任务列表", "列出任务"}:
+            return self._tool("list_tasks", {})
+
         match = re.match(
             r"^create task plan\s+<?(task_\d+)>?\s+::\s*(.+)$",
             user_text,
@@ -197,6 +252,10 @@ class DemoModel:
         if match:
             steps = [step.strip() for step in match.group(2).split(";") if step.strip()]
             return self._tool("create_task_plan", {"task_id": match.group(1).lower(), "steps": steps})
+
+        match = re.match(r"^validate task plan\s+<?(task_\d+)>?$", user_text, flags=re.IGNORECASE)
+        if match:
+            return self._tool("validate_task_plan", {"task_id": match.group(1).lower()})
 
         match = re.match(r"^(?:task plan|show task plan)\s+<?(task_\d+)>?$", user_text, flags=re.IGNORECASE)
         if not match:

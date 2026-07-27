@@ -45,7 +45,7 @@ def execute_plan_step(plan_id: str, step_index: int) -> str:
             if linked_error:
                 return linked_error
             content = str(step.get("content", ""))
-            result = _execute_supported_step(content, plan, int(step_index))
+            result = _execute_supported_step(step, plan)
             if result is None:
                 step["status"] = "blocked"
                 step["error"] = _blocked_error_for_step(content, plan, int(step_index))
@@ -110,7 +110,22 @@ def _linked_execution_error(plan: dict[str, Any], step_index: int) -> str | None
     return None
 
 
-def _execute_supported_step(content: str, plan: dict[str, Any] | None = None, step_index: int = 0) -> str | None:
+def _execute_supported_step(step: dict[str, Any], plan: dict[str, Any] | None = None) -> str | None:
+    content = str(step.get("content", ""))
+    step_index = int(step.get("index", 0))
+    executor = step.get("executor")
+    if executor:
+        mode = executor.get("mode")
+        if mode == "manual":
+            return None
+        if mode == "summary":
+            return summarize_previous_results(plan or {}, step_index)
+        if mode == "tool":
+            return _execute_mapped_tool(
+                str(executor.get("tool", "")),
+                dict(executor.get("arguments", {})),
+            )
+
     lowered = content.lower()
     if "readme" in lowered and "读取" in content:
         path = resolve_workspace_path("README.md")
@@ -144,7 +159,28 @@ def _execute_supported_step(content: str, plan: dict[str, Any] | None = None, st
     return None
 
 
+def _execute_mapped_tool(name: str, arguments: dict[str, Any]) -> str | None:
+    if name == "read_file":
+        path = resolve_workspace_path(str(arguments.get("path", "")))
+        if not path.is_file():
+            return f"File not found: {arguments.get('path', '')}"
+        return path.read_text(encoding="utf-8", errors="replace")
+    if name == "count_files_by_extension":
+        extension = str(arguments.get("extension", ""))
+        return _count_files_by_extension(extension)
+    if name == "get_workspace_summary":
+        return _workspace_summary()
+    return None
+
+
 def _blocked_error_for_step(content: str, plan: dict[str, Any], step_index: int) -> str:
+    step = next(
+        (item for item in plan.get("steps", []) if int(item.get("index", 0)) == step_index),
+        {},
+    )
+    executor = step.get("executor") or {}
+    if executor.get("mode") == "manual":
+        return str(executor.get("reason", "manual execution required"))
     if is_summary_step(content) and not previous_step_results(plan, step_index):
         return "missing previous step results"
     return "unsupported step type"

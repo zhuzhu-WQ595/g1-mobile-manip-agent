@@ -11,6 +11,7 @@ from ..plans import (
     resolve_blocked_step,
     suggest_next_plan_step,
     update_plan_step,
+    validate_task_plan,
 )
 from ..state.approval_store import (
     approve_pending_action,
@@ -176,6 +177,12 @@ STATE_TOOL_SCHEMAS: list[dict[str, object]] = [
         {"task_id": {"type": "string"}},
         ["task_id"],
     ),
+    schema(
+        "validate_task_plan",
+        "Validate the linked plan before execution and show each step's mapped tool, arguments, or manual handling requirement.",
+        {"task_id": {"type": "string"}},
+        ["task_id"],
+    ),
     schema("list_plans", "List saved multi-step plans.", {}, []),
     schema(
         "update_plan_step",
@@ -246,6 +253,7 @@ STATE_TOOL_HANDLERS: dict[str, ToolHandler] = {
     "create_plan": create_plan,
     "create_task_plan": create_task_plan,
     "get_task_plan": get_task_plan,
+    "validate_task_plan": validate_task_plan,
     "list_plans": list_plans,
     "update_plan_step": update_plan_step,
     "suggest_next_plan_step": suggest_next_plan_step,
