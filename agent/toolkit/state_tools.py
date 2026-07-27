@@ -13,6 +13,8 @@ from ..plans import (
 from ..state.approval_store import (
     approve_pending_action,
     cancel_pending_action,
+    get_approval_details,
+    list_approval_history,
     list_pending_approvals,
     request_edit_file,
     request_overwrite_file,
@@ -85,6 +87,23 @@ STATE_TOOL_SCHEMAS: list[dict[str, object]] = [
     ),
     schema("list_pending_approvals", "List pending approvals.", {}, []),
     schema(
+        "list_approval_history",
+        "List recent approval records, including pending, approved, and cancelled actions.",
+        {
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of recent approval records. Defaults to 10 and must be between 1 and 100.",
+            }
+        },
+        [],
+    ),
+    schema(
+        "get_approval_details",
+        "Get status, timestamps, result, and saved change details for one approval ID.",
+        {"approval_id": {"type": "string"}},
+        ["approval_id"],
+    ),
+    schema(
         "create_plan",
         "Create a multi-step plan without executing it. Use this for planning complex tasks.",
         {
@@ -156,6 +175,8 @@ STATE_TOOL_HANDLERS: dict[str, ToolHandler] = {
     "approve_pending_action": approve_pending_action,
     "cancel_pending_action": cancel_pending_action,
     "list_pending_approvals": list_pending_approvals,
+    "list_approval_history": list_approval_history,
+    "get_approval_details": get_approval_details,
     "create_plan": create_plan,
     "list_plans": list_plans,
     "update_plan_step": update_plan_step,

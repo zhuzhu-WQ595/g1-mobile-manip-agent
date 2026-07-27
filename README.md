@@ -121,6 +121,8 @@ append notes/example.txt :: hello
 edit notes/example.txt :: hello => hello world
 approve approval_001
 cancel approval_001
+approval history
+approval approval_001
 ```
 
 The `.agent_state/` folder is local runtime state and is ignored by git.

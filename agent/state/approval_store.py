@@ -35,6 +35,20 @@ def _approval_status(approval: dict[str, Any]) -> str:
     return str(approval.get("status") or "pending")
 
 
+def _history_limit(limit: int) -> int:
+    try:
+        value = int(limit)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("limit must be an integer between 1 and 100") from exc
+    if value < 1 or value > 100:
+        raise ValueError("limit must be between 1 and 100")
+    return value
+
+
+def _table_cell(value: Any) -> str:
+    return str(value or "-").replace("\n", " ").replace("|", r"\|")
+
+
 def _resolve_approval(
     approvals: dict[str, Any],
     approval_id: str,
@@ -114,6 +128,7 @@ def request_edit_file(path: str, old_text: str, new_text: str) -> str:
         "path": str(relative_path),
         "old_text": old_text,
         "new_text": new_text,
+        "diff": diff,
         "original_sha256": sha256(text.encode("utf-8")).hexdigest(),
         "status": "pending",
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -206,3 +221,72 @@ def list_pending_approvals() -> str:
             f"{approval_id}: {approval.get('action')} {approval.get('path')} created_at={approval.get('created_at')}"
         )
     return "\n".join(rows) if rows else "(no pending approvals)"
+
+
+def list_approval_history(limit: int = 10) -> str:
+    row_limit = _history_limit(limit)
+    approvals = _load_approvals()
+    if not approvals:
+        return "(no approval history)"
+
+    records = sorted(
+        approvals.items(),
+        key=lambda item: (str(item[1].get("created_at", "")), item[0]),
+        reverse=True,
+    )[:row_limit]
+    rows = [
+        "Approval history:",
+        "| # | ID | Status | Action | Path | Created | Resolved |",
+        "|---:|---|---|---|---|---|---|",
+    ]
+    for index, (approval_id, approval) in enumerate(records, start=1):
+        rows.append(
+            "| "
+            + " | ".join(
+                [
+                    str(index),
+                    _table_cell(approval_id),
+                    _table_cell(_approval_status(approval)),
+                    _table_cell(approval.get("action")),
+                    _table_cell(approval.get("path")),
+                    _table_cell(approval.get("created_at")),
+                    _table_cell(approval.get("resolved_at")),
+                ]
+            )
+            + " |"
+        )
+    return "\n".join(rows)
+
+
+def get_approval_details(approval_id: str) -> str:
+    approval = _load_approvals().get(approval_id)
+    if approval is None:
+        return f"Approval not found: {approval_id}"
+
+    rows = [
+        "Approval details:",
+        f"ID: {approval_id}",
+        f"Status: {_approval_status(approval)}",
+        f"Action: {approval.get('action')}",
+        f"Path: {approval.get('path')}",
+        f"Created: {approval.get('created_at')}",
+    ]
+    if approval.get("resolved_at"):
+        rows.append(f"Resolved: {approval['resolved_at']}")
+    if approval.get("result"):
+        rows.append(f"Result: {approval['result']}")
+
+    if approval.get("action") == "edit_file":
+        diff = str(approval.get("diff") or "")
+        if diff:
+            rows.extend(["Diff:", "```diff", diff, "```"])
+        else:
+            rows.append("Diff: (not recorded for this approval)")
+    elif approval.get("action") == "overwrite_file":
+        content = str(approval.get("content", ""))
+        preview = content[:500]
+        if len(content) > 500:
+            preview += "..."
+        rows.extend(["Content preview:", "```text", preview, "```"])
+
+    return "\n".join(rows)

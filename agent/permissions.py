@@ -40,6 +40,8 @@ SAFE_STATE_TOOLS = {
     "approve_pending_action",
     "cancel_pending_action",
     "list_pending_approvals",
+    "list_approval_history",
+    "get_approval_details",
     "create_plan",
     "list_plans",
     "update_plan_step",

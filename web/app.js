@@ -5,6 +5,7 @@ const input = document.querySelector("#messageInput");
 const sendBtn = document.querySelector("#sendBtn");
 const resetBtn = document.querySelector("#resetBtn");
 const serverStatus = document.querySelector("#serverStatus");
+let traceTurn = 0;
 
 function addMessage(role, text, className = "") {
   const item = document.createElement("article");
@@ -20,12 +21,23 @@ function addMessage(role, text, className = "") {
 }
 
 function renderTrace(events) {
-  traceLog.textContent = "";
+  traceTurn += 1;
+  traceLog.querySelector(".empty")?.remove();
+
+  const turn = document.createElement("section");
+  turn.className = "trace-turn";
+  const heading = document.createElement("div");
+  heading.className = "trace-turn-title";
+  const count = events?.length || 0;
+  heading.textContent = `第 ${traceTurn} 轮 · ${count} 个工具`;
+  turn.appendChild(heading);
+
   if (!events || events.length === 0) {
     const empty = document.createElement("div");
-    empty.className = "empty";
+    empty.className = "trace-turn-empty";
     empty.textContent = "本轮没有工具调用";
-    traceLog.appendChild(empty);
+    turn.appendChild(empty);
+    traceLog.appendChild(turn);
     return;
   }
 
@@ -46,8 +58,18 @@ function renderTrace(events) {
     pre.textContent = JSON.stringify({ arguments: event.arguments, result: event.result }, null, 2);
 
     item.append(title, pre);
-    traceLog.appendChild(item);
+    turn.appendChild(item);
   }
+  traceLog.appendChild(turn);
+}
+
+function resetTrace() {
+  traceTurn = 0;
+  traceLog.textContent = "";
+  const empty = document.createElement("div");
+  empty.className = "empty";
+  empty.textContent = "暂无工具调用";
+  traceLog.appendChild(empty);
 }
 
 async function postJson(url, payload = {}) {
@@ -100,7 +122,7 @@ document.querySelectorAll(".quick").forEach((button) => {
 resetBtn.addEventListener("click", async () => {
   await postJson("/api/reset");
   chatLog.textContent = "";
-  renderTrace([]);
+  resetTrace();
   addMessage("agent", "对话已重置。", "");
 });
 
@@ -113,6 +135,6 @@ async function checkHealth() {
   }
 }
 
-renderTrace([]);
+resetTrace();
 addMessage("agent", "界面已就绪。可以输入 list files、read README.md，或直接描述你的需求。");
 checkHealth();

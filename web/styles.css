@@ -187,7 +187,30 @@ textarea:focus { border-color: var(--accent); }
 
 .trace-log {
   display: grid;
-  gap: 10px;
+  gap: 14px;
+}
+
+.trace-turn {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.trace-turn:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.trace-turn-title {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.trace-turn-empty {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .trace-item {

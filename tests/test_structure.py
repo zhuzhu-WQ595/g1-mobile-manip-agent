@@ -25,6 +25,8 @@ def test_tool_registry_has_matching_handlers_and_schemas():
     assert "get_recent_tool_events" in handler_names
     assert "request_edit_file" in handler_names
     assert "cancel_pending_action" in handler_names
+    assert "list_approval_history" in handler_names
+    assert "get_approval_details" in handler_names
     assert "edit_file" not in handler_names
 
 
@@ -68,9 +70,22 @@ def test_demo_model_routes_cancel_approval():
     assert response["tool_calls"][0]["arguments"] == {"approval_id": "approval_001"}
 
 
+def test_demo_model_routes_approval_queries():
+    model = DemoModel()
+    history = model.complete([user_message("recent 3 approvals")], tools=[])
+    details = model.complete([user_message("approval approval_001")], tools=[])
+
+    assert history["tool_calls"][0]["name"] == "list_approval_history"
+    assert history["tool_calls"][0]["arguments"] == {"limit": 3}
+    assert details["tool_calls"][0]["name"] == "get_approval_details"
+    assert details["tool_calls"][0]["arguments"] == {"approval_id": "approval_001"}
+
+
 def test_recent_tool_events_permission_is_allowed():
     check_tool_call("get_recent_tool_events", {"limit": 3})
     check_tool_call("cancel_pending_action", {"approval_id": "approval_001"})
+    check_tool_call("list_approval_history", {"limit": 3})
+    check_tool_call("get_approval_details", {"approval_id": "approval_001"})
 
 
 def test_edit_approval_permission_stays_inside_workspace():
@@ -106,3 +121,5 @@ def test_system_prompt_contains_key_sections():
     assert "get_recent_tool_events" in SYSTEM_PROMPT
     assert "request_edit_file" in SYSTEM_PROMPT
     assert "cancel_pending_action" in SYSTEM_PROMPT
+    assert "list_approval_history" in SYSTEM_PROMPT
+    assert "get_approval_details" in SYSTEM_PROMPT

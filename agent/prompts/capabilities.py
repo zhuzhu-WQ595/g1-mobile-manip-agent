@@ -12,6 +12,7 @@ CAPABILITIES = [
     "Request approval before overwriting files with request_overwrite_file, then execute with approve_pending_action only after the user approves.",
     "Preview exact file edits with request_edit_file, then execute with approve_pending_action only after the user approves.",
     "Cancel pending approvals with cancel_pending_action without executing them.",
+    "List approval history and inspect one approval with list_approval_history and get_approval_details.",
     "Create, inspect, suggest, execute one supported step, execute the next pending step, diagnose blocked steps, resolve blocked steps, and update multi-step plans with create_plan, list_plans, suggest_next_plan_step, execute_plan_step, execute_next_plan_step, diagnose_blocked_step, resolve_blocked_step, and update_plan_step.",
     "Save and read simple long-term memory.",
     "Create and update local tasks.",

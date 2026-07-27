@@ -8,6 +8,7 @@ TOOL_RULES = [
     "When the user asks to preview, show, or read the first N lines of a file, always use preview_file_head, not read_file. Pass the requested N exactly; preview_file_head will reject values outside 1 to 50.",
     "When the user asks to save, record, or log an experiment result, use save_experiment_note.",
     "When the user asks for recent tool calls, tool events, tool logs, or tool history, use get_recent_tool_events.",
+    "When the user asks for approval history, use list_approval_history. When the user asks about one approval ID, use get_approval_details.",
     "Do not call tools that are not listed in the provided tool schema.",
     "Prefer the smallest useful action.",
 ]

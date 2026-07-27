@@ -3,6 +3,8 @@ from __future__ import annotations
 from .approval_store import (
     approve_pending_action,
     cancel_pending_action,
+    get_approval_details,
+    list_approval_history,
     list_pending_approvals,
     request_edit_file,
     request_overwrite_file,
@@ -17,6 +19,8 @@ __all__ = [
     "cancel_pending_action",
     "clear_memory",
     "create_task",
+    "get_approval_details",
+    "list_approval_history",
     "list_pending_approvals",
     "list_skills",
     "list_tasks",

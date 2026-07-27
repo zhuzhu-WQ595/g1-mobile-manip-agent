@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_state_stores_use_temp_state_dir(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
@@ -142,3 +145,41 @@ def test_pending_approval_can_be_cancelled_without_reusing_id(tmp_path, monkeypa
     approvals = approval_store._load_approvals()
     assert approvals["approval_001"]["status"] == "cancelled"
     assert approvals["approval_002"]["status"] == "pending"
+
+
+def test_approval_history_and_details_are_read_only(tmp_path, monkeypatch):
+    approval_store = _configure_approval_store(tmp_path, monkeypatch)
+    file_path = tmp_path / "example.txt"
+    file_path.write_text("hello", encoding="utf-8")
+
+    approval_store.request_edit_file("example.txt", "hello", "hello world")
+    approval_store.approve_pending_action("approval_001")
+    approval_store.request_overwrite_file("next.txt", "next")
+    approval_store.cancel_pending_action("approval_002")
+
+    recent = approval_store.list_approval_history(limit=1)
+    assert "Approval history:" in recent
+    assert "approval_002" in recent
+    assert "cancelled" in recent
+    assert "approval_001" not in recent
+
+    history = approval_store.list_approval_history(limit=10)
+    assert history.index("approval_002") < history.index("approval_001")
+    assert "approved" in history
+
+    details = approval_store.get_approval_details("approval_001")
+    assert "Status: approved" in details
+    assert "Action: edit_file" in details
+    assert "--- a/example.txt" in details
+    assert "-hello" in details
+    assert "+hello world" in details
+    assert approval_store.get_approval_details("approval_999") == "Approval not found: approval_999"
+
+    with pytest.raises(ValueError, match="between 1 and 100"):
+        approval_store.list_approval_history(limit=0)
+    with pytest.raises(ValueError, match="integer between 1 and 100"):
+        approval_store.list_approval_history(limit="many")
+
+    approvals = approval_store._load_approvals()
+    assert approvals["approval_001"]["status"] == "approved"
+    assert approvals["approval_002"]["status"] == "cancelled"
