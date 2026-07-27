@@ -24,6 +24,7 @@ def test_tool_registry_has_matching_handlers_and_schemas():
     assert "list_skills" in handler_names
     assert "get_recent_tool_events" in handler_names
     assert "request_edit_file" in handler_names
+    assert "cancel_pending_action" in handler_names
     assert "edit_file" not in handler_names
 
 
@@ -58,8 +59,18 @@ def test_demo_model_routes_edit_to_approval():
     }
 
 
+def test_demo_model_routes_cancel_approval():
+    model = DemoModel()
+    response = model.complete([user_message("cancel approval_001")], tools=[])
+
+    assert response["type"] == "tool_calls"
+    assert response["tool_calls"][0]["name"] == "cancel_pending_action"
+    assert response["tool_calls"][0]["arguments"] == {"approval_id": "approval_001"}
+
+
 def test_recent_tool_events_permission_is_allowed():
     check_tool_call("get_recent_tool_events", {"limit": 3})
+    check_tool_call("cancel_pending_action", {"approval_id": "approval_001"})
 
 
 def test_edit_approval_permission_stays_inside_workspace():
@@ -94,3 +105,4 @@ def test_system_prompt_contains_key_sections():
     assert "create_plan" in SYSTEM_PROMPT
     assert "get_recent_tool_events" in SYSTEM_PROMPT
     assert "request_edit_file" in SYSTEM_PROMPT
+    assert "cancel_pending_action" in SYSTEM_PROMPT

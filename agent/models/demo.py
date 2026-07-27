@@ -68,9 +68,13 @@ class DemoModel:
                 },
             )
 
-        match = re.match(r"^approve\s+(approval_\d{3})$", lowered)
+        match = re.match(r"^approve\s+(approval_\d+)$", lowered)
         if match:
             return self._tool("approve_pending_action", {"approval_id": match.group(1)})
+
+        match = re.match(r"^(?:cancel|reject)\s+(approval_\d+)$", lowered)
+        if match:
+            return self._tool("cancel_pending_action", {"approval_id": match.group(1)})
 
         if lowered in {"approvals", "list approvals", "pending approvals"}:
             return self._tool("list_pending_approvals", {})
@@ -197,7 +201,7 @@ class DemoModel:
                 "Demo model received your message. Try: list files, read README.md, "
                 "show first 5 lines of README.md, write notes/new-note.txt :: hello, "
                 "overwrite notes/test.txt :: hello, edit notes/test.txt :: hello => hi, "
-                "approve approval_001, count python files, "
+                "approve approval_001, cancel approval_001, count python files, "
                 "create plan demo :: step one; step two, suggest next step for plan_123, execute next step of plan_123, plans, "
                 "resolve blocked step 1 of plan_123 :: manual result, "
                 "diagnose blocked step 1 of plan_123, "

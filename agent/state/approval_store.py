@@ -31,6 +31,24 @@ def _next_approval_id(approvals: dict[str, Any]) -> str:
     return f"approval_{index:03d}"
 
 
+def _approval_status(approval: dict[str, Any]) -> str:
+    return str(approval.get("status") or "pending")
+
+
+def _resolve_approval(
+    approvals: dict[str, Any],
+    approval_id: str,
+    status: str,
+    result: str,
+) -> str:
+    approval = approvals[approval_id]
+    approval["status"] = status
+    approval["resolved_at"] = datetime.now().isoformat(timespec="seconds")
+    approval["result"] = result
+    _save_approvals(approvals)
+    return result
+
+
 def request_overwrite_file(path: str, content: str) -> str:
     file_path = resolve_workspace_path(path)
     approvals = _load_approvals()
@@ -39,6 +57,7 @@ def request_overwrite_file(path: str, content: str) -> str:
         "action": "overwrite_file",
         "path": str(file_path.relative_to(Path.cwd())),
         "content": content,
+        "status": "pending",
         "created_at": datetime.now().isoformat(timespec="seconds"),
     }
     _save_approvals(approvals)
@@ -55,6 +74,7 @@ def request_overwrite_file(path: str, content: str) -> str:
             f"Content preview: {preview}",
             "",
             f"Type: approve {approval_id}",
+            f"Or: cancel {approval_id}",
         ]
     )
 
@@ -95,6 +115,7 @@ def request_edit_file(path: str, old_text: str, new_text: str) -> str:
         "old_text": old_text,
         "new_text": new_text,
         "original_sha256": sha256(text.encode("utf-8")).hexdigest(),
+        "status": "pending",
         "created_at": datetime.now().isoformat(timespec="seconds"),
     }
     _save_approvals(approvals)
@@ -111,6 +132,7 @@ def request_edit_file(path: str, old_text: str, new_text: str) -> str:
             "```",
             "",
             f"Type: approve {approval_id}",
+            f"Or: cancel {approval_id}",
         ]
     )
 
@@ -120,6 +142,9 @@ def approve_pending_action(approval_id: str) -> str:
     approval = approvals.get(approval_id)
     if approval is None:
         return f"No pending approval found: {approval_id}"
+    status = _approval_status(approval)
+    if status != "pending":
+        return f"Approval {approval_id} is already {status}"
 
     action = approval.get("action")
     file_path = resolve_workspace_path(str(approval["path"]))
@@ -130,22 +155,19 @@ def approve_pending_action(approval_id: str) -> str:
         result = f"Approved {approval_id}; overwrote {file_path.relative_to(Path.cwd())} with {len(content)} characters"
     elif action == "edit_file":
         if not file_path.is_file():
-            del approvals[approval_id]
-            _save_approvals(approvals)
-            return f"Cancelled {approval_id}; file no longer exists: {approval['path']}"
+            result = f"Cancelled {approval_id}; file no longer exists: {approval['path']}"
+            return _resolve_approval(approvals, approval_id, "cancelled", result)
 
         text = file_path.read_text(encoding="utf-8", errors="replace")
         current_sha256 = sha256(text.encode("utf-8")).hexdigest()
         if current_sha256 != approval.get("original_sha256"):
-            del approvals[approval_id]
-            _save_approvals(approvals)
-            return f"Cancelled {approval_id}; file changed after approval was requested"
+            result = f"Cancelled {approval_id}; file changed after approval was requested"
+            return _resolve_approval(approvals, approval_id, "cancelled", result)
 
         old_text = str(approval.get("old_text", ""))
         if not old_text or text.count(old_text) != 1:
-            del approvals[approval_id]
-            _save_approvals(approvals)
-            return f"Cancelled {approval_id}; the approved text no longer has one exact match"
+            result = f"Cancelled {approval_id}; the approved text no longer has one exact match"
+            return _resolve_approval(approvals, approval_id, "cancelled", result)
 
         new_text = str(approval.get("new_text", ""))
         file_path.write_text(text.replace(old_text, new_text, 1), encoding="utf-8")
@@ -153,9 +175,23 @@ def approve_pending_action(approval_id: str) -> str:
     else:
         return f"Unsupported approval action: {action}"
 
-    del approvals[approval_id]
-    _save_approvals(approvals)
-    return result
+    return _resolve_approval(approvals, approval_id, "approved", result)
+
+
+def cancel_pending_action(approval_id: str) -> str:
+    approvals = _load_approvals()
+    approval = approvals.get(approval_id)
+    if approval is None:
+        return f"No pending approval found: {approval_id}"
+    status = _approval_status(approval)
+    if status != "pending":
+        return f"Approval {approval_id} is already {status}"
+
+    result = (
+        f"Cancelled {approval_id}; {approval.get('action')} for "
+        f"{approval.get('path')} was not executed"
+    )
+    return _resolve_approval(approvals, approval_id, "cancelled", result)
 
 
 def list_pending_approvals() -> str:
@@ -164,7 +200,9 @@ def list_pending_approvals() -> str:
         return "(no pending approvals)"
     rows = []
     for approval_id, approval in sorted(approvals.items()):
+        if _approval_status(approval) != "pending":
+            continue
         rows.append(
             f"{approval_id}: {approval.get('action')} {approval.get('path')} created_at={approval.get('created_at')}"
         )
-    return "\n".join(rows)
+    return "\n".join(rows) if rows else "(no pending approvals)"

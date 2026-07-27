@@ -38,6 +38,7 @@ SAFE_STATE_TOOLS = {
     "count_files_by_extension",
     "save_experiment_note",
     "approve_pending_action",
+    "cancel_pending_action",
     "list_pending_approvals",
     "create_plan",
     "list_plans",

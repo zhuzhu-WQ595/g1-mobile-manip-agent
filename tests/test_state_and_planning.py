@@ -83,6 +83,7 @@ def test_edit_requires_approval_and_returns_diff(tmp_path, monkeypatch):
 
     assert file_path.read_text(encoding="utf-8") == "alpha\nhello\nomega\n"
     assert "Approval ID: approval_001" in request
+    assert "Or: cancel approval_001" in request
     assert "--- a/notes/example.txt" in request
     assert "-hello" in request
     assert "+hello world" in request
@@ -93,6 +94,7 @@ def test_edit_requires_approval_and_returns_diff(tmp_path, monkeypatch):
     assert result.startswith("Approved approval_001; edited ")
     assert file_path.read_text(encoding="utf-8") == "alpha\nhello world\nomega\n"
     assert approval_store.list_pending_approvals() == "(no pending approvals)"
+    assert approval_store._load_approvals()["approval_001"]["status"] == "approved"
 
 
 def test_edit_approval_rejects_ambiguous_match(tmp_path, monkeypatch):
@@ -119,3 +121,24 @@ def test_edit_approval_is_cancelled_when_file_changes(tmp_path, monkeypatch):
     assert result == "Cancelled approval_001; file changed after approval was requested"
     assert file_path.read_text(encoding="utf-8") == "changed elsewhere"
     assert approval_store.list_pending_approvals() == "(no pending approvals)"
+    assert approval_store._load_approvals()["approval_001"]["status"] == "cancelled"
+
+
+def test_pending_approval_can_be_cancelled_without_reusing_id(tmp_path, monkeypatch):
+    approval_store = _configure_approval_store(tmp_path, monkeypatch)
+
+    first_request = approval_store.request_overwrite_file("cancelled.txt", "blocked")
+    assert "Approval ID: approval_001" in first_request
+
+    result = approval_store.cancel_pending_action("approval_001")
+
+    assert result == "Cancelled approval_001; overwrite_file for cancelled.txt was not executed"
+    assert not (tmp_path / "cancelled.txt").exists()
+    assert approval_store.list_pending_approvals() == "(no pending approvals)"
+    assert approval_store.approve_pending_action("approval_001") == "Approval approval_001 is already cancelled"
+
+    second_request = approval_store.request_overwrite_file("next.txt", "next")
+    assert "Approval ID: approval_002" in second_request
+    approvals = approval_store._load_approvals()
+    assert approvals["approval_001"]["status"] == "cancelled"
+    assert approvals["approval_002"]["status"] == "pending"

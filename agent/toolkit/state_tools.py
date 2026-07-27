@@ -12,6 +12,7 @@ from ..plans import (
 )
 from ..state.approval_store import (
     approve_pending_action,
+    cancel_pending_action,
     list_pending_approvals,
     request_edit_file,
     request_overwrite_file,
@@ -73,6 +74,12 @@ STATE_TOOL_SCHEMAS: list[dict[str, object]] = [
     schema(
         "approve_pending_action",
         "Approve and execute a previously created pending action by approval ID.",
+        {"approval_id": {"type": "string"}},
+        ["approval_id"],
+    ),
+    schema(
+        "cancel_pending_action",
+        "Cancel a pending action by approval ID without executing it.",
         {"approval_id": {"type": "string"}},
         ["approval_id"],
     ),
@@ -147,6 +154,7 @@ STATE_TOOL_HANDLERS: dict[str, ToolHandler] = {
     "request_overwrite_file": request_overwrite_file,
     "request_edit_file": request_edit_file,
     "approve_pending_action": approve_pending_action,
+    "cancel_pending_action": cancel_pending_action,
     "list_pending_approvals": list_pending_approvals,
     "create_plan": create_plan,
     "list_plans": list_plans,
