@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from difflib import unified_diff
+from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -57,21 +59,103 @@ def request_overwrite_file(path: str, content: str) -> str:
     )
 
 
+def request_edit_file(path: str, old_text: str, new_text: str) -> str:
+    file_path = resolve_workspace_path(path)
+    if not file_path.is_file():
+        return f"Not a file: {path}"
+    if not old_text:
+        return "old_text must not be empty"
+    if old_text == new_text:
+        return "old_text and new_text are identical; approval was not created"
+
+    text = file_path.read_text(encoding="utf-8", errors="replace")
+    count = text.count(old_text)
+    if count == 0:
+        return "No match found; approval was not created"
+    if count > 1:
+        return f"Found {count} matches; refine old_text before requesting approval"
+
+    updated = text.replace(old_text, new_text, 1)
+    relative_path = file_path.relative_to(Path.cwd())
+    diff = "\n".join(
+        unified_diff(
+            text.splitlines(),
+            updated.splitlines(),
+            fromfile=f"a/{relative_path.as_posix()}",
+            tofile=f"b/{relative_path.as_posix()}",
+            lineterm="",
+        )
+    )
+
+    approvals = _load_approvals()
+    approval_id = _next_approval_id(approvals)
+    approvals[approval_id] = {
+        "action": "edit_file",
+        "path": str(relative_path),
+        "old_text": old_text,
+        "new_text": new_text,
+        "original_sha256": sha256(text.encode("utf-8")).hexdigest(),
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    _save_approvals(approvals)
+
+    return "\n".join(
+        [
+            "Approval required before editing a file.",
+            f"Approval ID: {approval_id}",
+            "Action: edit_file",
+            f"Path: {relative_path}",
+            "Diff:",
+            "```diff",
+            diff,
+            "```",
+            "",
+            f"Type: approve {approval_id}",
+        ]
+    )
+
+
 def approve_pending_action(approval_id: str) -> str:
     approvals = _load_approvals()
     approval = approvals.get(approval_id)
     if approval is None:
         return f"No pending approval found: {approval_id}"
-    if approval.get("action") != "overwrite_file":
-        return f"Unsupported approval action: {approval.get('action')}"
 
+    action = approval.get("action")
     file_path = resolve_workspace_path(str(approval["path"]))
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-    content = str(approval.get("content", ""))
-    file_path.write_text(content, encoding="utf-8")
+    if action == "overwrite_file":
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        content = str(approval.get("content", ""))
+        file_path.write_text(content, encoding="utf-8")
+        result = f"Approved {approval_id}; overwrote {file_path.relative_to(Path.cwd())} with {len(content)} characters"
+    elif action == "edit_file":
+        if not file_path.is_file():
+            del approvals[approval_id]
+            _save_approvals(approvals)
+            return f"Cancelled {approval_id}; file no longer exists: {approval['path']}"
+
+        text = file_path.read_text(encoding="utf-8", errors="replace")
+        current_sha256 = sha256(text.encode("utf-8")).hexdigest()
+        if current_sha256 != approval.get("original_sha256"):
+            del approvals[approval_id]
+            _save_approvals(approvals)
+            return f"Cancelled {approval_id}; file changed after approval was requested"
+
+        old_text = str(approval.get("old_text", ""))
+        if not old_text or text.count(old_text) != 1:
+            del approvals[approval_id]
+            _save_approvals(approvals)
+            return f"Cancelled {approval_id}; the approved text no longer has one exact match"
+
+        new_text = str(approval.get("new_text", ""))
+        file_path.write_text(text.replace(old_text, new_text, 1), encoding="utf-8")
+        result = f"Approved {approval_id}; edited {file_path.relative_to(Path.cwd())}"
+    else:
+        return f"Unsupported approval action: {action}"
+
     del approvals[approval_id]
     _save_approvals(approvals)
-    return f"Approved {approval_id}; overwrote {file_path.relative_to(Path.cwd())} with {len(content)} characters"
+    return result
 
 
 def list_pending_approvals() -> str:

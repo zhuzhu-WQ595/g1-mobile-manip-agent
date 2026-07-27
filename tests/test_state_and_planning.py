@@ -58,3 +58,64 @@ def test_planning_create_and_execute_count_step(tmp_path, monkeypatch):
     assert "Executed step 1" in output
     assert "Extension: .py" in output
     assert "Count: 1" in output
+
+
+def _configure_approval_store(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    from agent import permissions
+    from agent.state import approval_store
+
+    state_dir = tmp_path / ".agent_state"
+    monkeypatch.setattr(permissions, "WORKSPACE_ROOT", tmp_path.resolve())
+    monkeypatch.setattr(approval_store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(approval_store, "APPROVALS_FILE", state_dir / "approvals.json")
+    return approval_store
+
+
+def test_edit_requires_approval_and_returns_diff(tmp_path, monkeypatch):
+    approval_store = _configure_approval_store(tmp_path, monkeypatch)
+    file_path = tmp_path / "notes" / "example.txt"
+    file_path.parent.mkdir()
+    file_path.write_text("alpha\nhello\nomega\n", encoding="utf-8")
+
+    request = approval_store.request_edit_file("notes/example.txt", "hello", "hello world")
+
+    assert file_path.read_text(encoding="utf-8") == "alpha\nhello\nomega\n"
+    assert "Approval ID: approval_001" in request
+    assert "--- a/notes/example.txt" in request
+    assert "-hello" in request
+    assert "+hello world" in request
+    assert "approval_001: edit_file" in approval_store.list_pending_approvals()
+
+    result = approval_store.approve_pending_action("approval_001")
+
+    assert result.startswith("Approved approval_001; edited ")
+    assert file_path.read_text(encoding="utf-8") == "alpha\nhello world\nomega\n"
+    assert approval_store.list_pending_approvals() == "(no pending approvals)"
+
+
+def test_edit_approval_rejects_ambiguous_match(tmp_path, monkeypatch):
+    approval_store = _configure_approval_store(tmp_path, monkeypatch)
+    file_path = tmp_path / "example.txt"
+    file_path.write_text("hello hello", encoding="utf-8")
+
+    result = approval_store.request_edit_file("example.txt", "hello", "hi")
+
+    assert result == "Found 2 matches; refine old_text before requesting approval"
+    assert file_path.read_text(encoding="utf-8") == "hello hello"
+    assert approval_store.list_pending_approvals() == "(no pending approvals)"
+
+
+def test_edit_approval_is_cancelled_when_file_changes(tmp_path, monkeypatch):
+    approval_store = _configure_approval_store(tmp_path, monkeypatch)
+    file_path = tmp_path / "example.txt"
+    file_path.write_text("hello", encoding="utf-8")
+    approval_store.request_edit_file("example.txt", "hello", "hi")
+    file_path.write_text("changed elsewhere", encoding="utf-8")
+
+    result = approval_store.approve_pending_action("approval_001")
+
+    assert result == "Cancelled approval_001; file changed after approval was requested"
+    assert file_path.read_text(encoding="utf-8") == "changed elsewhere"
+    assert approval_store.list_pending_approvals() == "(no pending approvals)"

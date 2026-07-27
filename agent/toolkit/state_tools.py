@@ -10,7 +10,12 @@ from ..plans import (
     suggest_next_plan_step,
     update_plan_step,
 )
-from ..state.approval_store import approve_pending_action, list_pending_approvals, request_overwrite_file
+from ..state.approval_store import (
+    approve_pending_action,
+    list_pending_approvals,
+    request_edit_file,
+    request_overwrite_file,
+)
 from ..state.event_log import read_recent_events
 from ..state.memory_store import clear_memory, load_memory, remember
 from ..state.skill_store import list_skills, read_skill
@@ -54,6 +59,16 @@ STATE_TOOL_SCHEMAS: list[dict[str, object]] = [
         "Create a pending approval to overwrite a workspace file. This does not write the file until the user approves the returned approval ID.",
         {"path": {"type": "string"}, "content": {"type": "string"}},
         ["path", "content"],
+    ),
+    schema(
+        "request_edit_file",
+        "Preview an exact text replacement as a diff and create a pending approval. This does not edit the file until the user approves the returned approval ID.",
+        {
+            "path": {"type": "string"},
+            "old_text": {"type": "string"},
+            "new_text": {"type": "string"},
+        },
+        ["path", "old_text", "new_text"],
     ),
     schema(
         "approve_pending_action",
@@ -130,6 +145,7 @@ STATE_TOOL_HANDLERS: dict[str, ToolHandler] = {
     "read_skill": read_skill,
     "get_recent_tool_events": read_recent_events,
     "request_overwrite_file": request_overwrite_file,
+    "request_edit_file": request_edit_file,
     "approve_pending_action": approve_pending_action,
     "list_pending_approvals": list_pending_approvals,
     "create_plan": create_plan,

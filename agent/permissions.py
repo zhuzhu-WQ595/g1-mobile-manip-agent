@@ -17,11 +17,11 @@ PATH_TOOLS = {
     "read_file",
     "write_file",
     "append_file",
-    "edit_file",
     "create_folder",
     "search_files",
     "preview_file_head",
     "request_overwrite_file",
+    "request_edit_file",
 }
 
 SAFE_STATE_TOOLS = {

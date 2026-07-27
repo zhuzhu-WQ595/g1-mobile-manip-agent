@@ -57,6 +57,17 @@ class DemoModel:
                 {"path": match.group(1).strip(), "content": match.group(2)},
             )
 
+        match = re.match(r"^edit\s+(.+?)\s+::\s*(.*?)\s+=>\s+(.*)$", user_text, flags=re.DOTALL | re.IGNORECASE)
+        if match:
+            return self._tool(
+                "request_edit_file",
+                {
+                    "path": match.group(1).strip(),
+                    "old_text": match.group(2),
+                    "new_text": match.group(3),
+                },
+            )
+
         match = re.match(r"^approve\s+(approval_\d{3})$", lowered)
         if match:
             return self._tool("approve_pending_action", {"approval_id": match.group(1)})
@@ -185,7 +196,8 @@ class DemoModel:
             "text": (
                 "Demo model received your message. Try: list files, read README.md, "
                 "show first 5 lines of README.md, write notes/hello.txt :: hello, "
-                "overwrite notes/test.txt :: hello, approve approval_001, count python files, "
+                "overwrite notes/test.txt :: hello, edit notes/test.txt :: hello => hi, "
+                "approve approval_001, count python files, "
                 "create plan demo :: step one; step two, suggest next step for plan_123, execute next step of plan_123, plans, "
                 "resolve blocked step 1 of plan_123 :: manual result, "
                 "diagnose blocked step 1 of plan_123, "

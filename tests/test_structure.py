@@ -1,3 +1,5 @@
+import pytest
+
 from agent.model_adapter import DemoModel, load_model_from_env
 from agent.permissions import check_tool_call
 from agent.prompt import SYSTEM_PROMPT
@@ -21,6 +23,8 @@ def test_tool_registry_has_matching_handlers_and_schemas():
     assert "create_plan" in handler_names
     assert "list_skills" in handler_names
     assert "get_recent_tool_events" in handler_names
+    assert "request_edit_file" in handler_names
+    assert "edit_file" not in handler_names
 
 
 def test_demo_model_routes_to_tool_call():
@@ -41,8 +45,27 @@ def test_demo_model_routes_tool_events_to_log_tool():
     assert response["tool_calls"][0]["arguments"] == {"limit": 3}
 
 
+def test_demo_model_routes_edit_to_approval():
+    model = DemoModel()
+    response = model.complete([user_message("edit notes/test.txt :: hello => hello world")], tools=[])
+
+    assert response["type"] == "tool_calls"
+    assert response["tool_calls"][0]["name"] == "request_edit_file"
+    assert response["tool_calls"][0]["arguments"] == {
+        "path": "notes/test.txt",
+        "old_text": "hello",
+        "new_text": "hello world",
+    }
+
+
 def test_recent_tool_events_permission_is_allowed():
     check_tool_call("get_recent_tool_events", {"limit": 3})
+
+
+def test_edit_approval_permission_stays_inside_workspace():
+    check_tool_call("request_edit_file", {"path": "notes/example.txt"})
+    with pytest.raises(PermissionError, match="Path is outside workspace"):
+        check_tool_call("request_edit_file", {"path": "../outside.txt"})
 
 
 def test_agent_returns_recent_tool_events_table_directly(tmp_path, monkeypatch):
@@ -70,3 +93,4 @@ def test_system_prompt_contains_key_sections():
     assert "General rules:" in SYSTEM_PROMPT
     assert "create_plan" in SYSTEM_PROMPT
     assert "get_recent_tool_events" in SYSTEM_PROMPT
+    assert "request_edit_file" in SYSTEM_PROMPT

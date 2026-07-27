@@ -27,12 +27,6 @@ FILE_TOOL_SCHEMAS: list[dict[str, object]] = [
         {"path": {"type": "string"}, "content": {"type": "string"}},
         ["path", "content"],
     ),
-    schema(
-        "edit_file",
-        "Replace an exact text fragment in a UTF-8 file inside the workspace.",
-        {"path": {"type": "string"}, "old_text": {"type": "string"}, "new_text": {"type": "string"}},
-        ["path", "old_text", "new_text"],
-    ),
     schema("create_folder", "Create a folder inside the workspace.", {"path": {"type": "string"}}, ["path"]),
     schema(
         "search_files",
@@ -169,7 +163,6 @@ FILE_TOOL_HANDLERS: dict[str, ToolHandler] = {
     "read_file": read_file,
     "write_file": write_file,
     "append_file": append_file,
-    "edit_file": edit_file,
     "create_folder": create_folder,
     "search_files": search_files,
     "preview_file_head": preview_file_head,
