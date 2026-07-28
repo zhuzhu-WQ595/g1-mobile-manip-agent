@@ -9,6 +9,7 @@ from ..plans import (
     get_task_plan,
     list_plans,
     resolve_blocked_step,
+    run_task_cycle,
     suggest_next_plan_step,
     update_plan_step,
     validate_task_plan,
@@ -183,6 +184,24 @@ STATE_TOOL_SCHEMAS: list[dict[str, object]] = [
         {"task_id": {"type": "string"}},
         ["task_id"],
     ),
+    schema(
+        "run_task_cycle",
+        "Run a complete task lifecycle for natural-language requests that ask to plan and execute a whole task. It creates a task, creates and validates a linked plan, starts the task, executes all supported plan steps in order, then completes or fails the task.",
+        {
+            "title": {"type": "string"},
+            "steps": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Optional ordered plan steps. When omitted, conservative default steps are generated from the title.",
+            },
+            "detail": {"type": "string"},
+            "max_steps": {
+                "type": "integer",
+                "description": "Maximum number of plan steps to execute. Defaults to 10.",
+            },
+        },
+        ["title"],
+    ),
     schema("list_plans", "List saved multi-step plans.", {}, []),
     schema(
         "update_plan_step",
@@ -254,6 +273,7 @@ STATE_TOOL_HANDLERS: dict[str, ToolHandler] = {
     "create_task_plan": create_task_plan,
     "get_task_plan": get_task_plan,
     "validate_task_plan": validate_task_plan,
+    "run_task_cycle": run_task_cycle,
     "list_plans": list_plans,
     "update_plan_step": update_plan_step,
     "suggest_next_plan_step": suggest_next_plan_step,

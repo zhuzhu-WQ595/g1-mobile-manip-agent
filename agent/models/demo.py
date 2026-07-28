@@ -14,9 +14,51 @@ TASK_REF_PATTERN = (
     r")>?"
 )
 
+PLAN_REF_PATTERN = (
+    r"<?("
+    r"plan_\d+|"
+    r"current(?: plan)?|latest(?: plan)?|last(?: plan)?|recent(?: plan)?|"
+    r"当前计划|当前|最新计划|最新|最近计划|最近|刚才的计划|刚才那个计划|上一个计划"
+    r")>?"
+)
+
 
 def clean_task_ref(value: str) -> str:
     return value.strip().strip("<>").lower()
+
+
+def clean_plan_ref(value: str) -> str:
+    return value.strip().strip("<>").lower()
+
+
+def natural_task_cycle_arguments(text: str) -> dict[str, Any] | None:
+    stripped = text.strip()
+    lowered = stripped.lower()
+    asks_full_cycle = any(
+        token in lowered
+        for token in (
+            "complete",
+            "end-to-end",
+            "full cycle",
+            "full workflow",
+            "run through",
+            "plan and execute",
+        )
+    ) or any(token in stripped for token in ("完整", "全流程", "完整流程", "自动规划并执行", "规划并执行"))
+    asks_project_structure = any(
+        token in lowered
+        for token in ("project structure", "workspace structure", "inspect project", "check project")
+    ) or any(token in stripped for token in ("项目结构", "工程结构", "当前项目", "项目"))
+    asks_summary = any(token in lowered for token in ("summary", "summarize", "report")) or any(
+        token in stripped for token in ("总结", "汇总", "报告")
+    )
+
+    if asks_project_structure and (asks_full_cycle or asks_summary):
+        return {
+            "title": "检查项目结构",
+            "steps": ["workspace summary", "list files in agent", "read README.md", "summarize results"],
+        }
+    return None
 
 
 class DemoModel:
@@ -29,15 +71,24 @@ class DemoModel:
                 return {
                     "type": "message",
                     "text": (
-                        "Tool failed:\n"
+                        "工具执行失败：\n"
                         f"{tool_text}\n\n"
-                        "I will not retry with changed parameters unless you confirm the new parameters."
+                        "我不会自动更换参数重试，除非你确认新的请求。"
                     ),
                 }
-            return {"type": "message", "text": f"Tool result:\n{tool_text}"}
+            return {"type": "message", "text": f"工具结果：\n{tool_text}"}
 
         user_text = latest_user_text(messages).strip()
         lowered = user_text.lower()
+
+        if lowered in {"help", "what can you do", "what can you do?", "你会做什么", "你能做什么", "你可以做什么", "帮助"}:
+            return {"type": "message", "text": self._capability_text()}
+
+        if "中文" in user_text and any(token in user_text for token in ("回答", "回复", "说")):
+            return {
+                "type": "message",
+                "text": "好的。当前 Web 演示模式使用本地规则模型，我会优先用中文说明，并在需要验证功能时调用对应工具。",
+            }
 
         if lowered in {"list files", "ls", "dir", "列目录"}:
             return self._tool("list_files", {"path": "."})
@@ -111,37 +162,62 @@ class DemoModel:
         if lowered in {"plans", "list plans"}:
             return self._tool("list_plans", {})
 
-        match = re.match(r"^(?:suggest next step for|next step for)\s+(plan_\d+)$", lowered)
+        match = re.match(
+            r"^(?:run task|run cycle|execute task cycle)\s+(.+?)(?:\s+::\s*(.+))?$",
+            user_text,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        if not match:
+            match = re.match(r"^(?:运行任务|执行任务周期|完整执行任务)\s+(.+?)(?:\s+::\s*(.+))?$", user_text, flags=re.DOTALL)
         if match:
-            return self._tool("suggest_next_plan_step", {"plan_id": match.group(1)})
+            steps = [step.strip() for step in (match.group(2) or "").split(";") if step.strip()]
+            arguments: dict[str, Any] = {"title": match.group(1).strip()}
+            if steps:
+                arguments["steps"] = steps
+            return self._tool("run_task_cycle", arguments)
 
-        match = re.match(r"^execute step\s+(\d+)\s+of\s+(plan_\d+)$", lowered)
+        natural_cycle = natural_task_cycle_arguments(user_text)
+        if natural_cycle is not None:
+            return self._tool("run_task_cycle", natural_cycle)
+
+        plan_ref = PLAN_REF_PATTERN
+        match = re.match(rf"^(?:suggest next step for|next step for)\s+{plan_ref}$", user_text, flags=re.IGNORECASE)
+        if match:
+            return self._tool("suggest_next_plan_step", {"plan_id": clean_plan_ref(match.group(1))})
+
+        match = re.match(rf"^execute step\s+(\d+)\s+of\s+{plan_ref}$", user_text, flags=re.IGNORECASE)
         if match:
             return self._tool(
                 "execute_plan_step",
-                {"step_index": int(match.group(1)), "plan_id": match.group(2)},
+                {"step_index": int(match.group(1)), "plan_id": clean_plan_ref(match.group(2))},
             )
 
-        match = re.match(r"^execute next step of\s+(plan_\d+)$", lowered)
+        match = re.match(rf"^execute next step of\s+{plan_ref}$", user_text, flags=re.IGNORECASE)
+        if not match:
+            match = re.match(rf"^执行{plan_ref}下一步$", user_text)
         if match:
-            return self._tool("execute_next_plan_step", {"plan_id": match.group(1)})
+            return self._tool("execute_next_plan_step", {"plan_id": clean_plan_ref(match.group(1))})
 
-        match = re.match(r"^resolve blocked step\s+(\d+)\s+of\s+(plan_\d+)\s+::\s*(.+)$", user_text, flags=re.DOTALL | re.IGNORECASE)
+        match = re.match(
+            rf"^resolve blocked step\s+(\d+)\s+of\s+{plan_ref}\s+::\s*(.+)$",
+            user_text,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
         if match:
             return self._tool(
                 "resolve_blocked_step",
                 {
                     "step_index": int(match.group(1)),
-                    "plan_id": match.group(2),
+                    "plan_id": clean_plan_ref(match.group(2)),
                     "result": match.group(3).strip(),
                 },
             )
 
-        match = re.match(r"^diagnose blocked step\s+(\d+)\s+of\s+(plan_\d+)$", lowered)
+        match = re.match(rf"^diagnose blocked step\s+(\d+)\s+of\s+{plan_ref}$", user_text, flags=re.IGNORECASE)
         if match:
             return self._tool(
                 "diagnose_blocked_step",
-                {"step_index": int(match.group(1)), "plan_id": match.group(2)},
+                {"step_index": int(match.group(1)), "plan_id": clean_plan_ref(match.group(2))},
             )
 
         match = re.match(r"^update plan\s+(plan_\d+)\s+step\s+(\d+)\s+(pending|in_progress|done|blocked)$", lowered)
@@ -355,19 +431,7 @@ class DemoModel:
 
         return {
             "type": "message",
-            "text": (
-                "Demo model received your message. Try: list files, read README.md, "
-                "show first 5 lines of README.md, write notes/new-note.txt :: hello, "
-                "overwrite notes/test.txt :: hello, edit notes/test.txt :: hello => hi, "
-                "approve approval_001, cancel approval_001, approval history, approval approval_001, "
-                "count python files, "
-                "create plan demo :: step one; step two, suggest next step for plan_123, execute next step of plan_123, plans, "
-                "resolve blocked step 1 of plan_123 :: manual result, "
-                "diagnose blocked step 1 of plan_123, "
-                "save experiment note :: done, remember xxx, tasks, start task_123, "
-                "complete task_123 :: result, fail task_123 :: reason, retry task_123, "
-                "cancel task_123, task task_123, tool events, search xxx, or python version."
-            ),
+            "text": self._fallback_text(),
         }
 
     def _tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -375,3 +439,30 @@ class DemoModel:
             "type": "tool_calls",
             "tool_calls": [{"id": "demo_call_1", "name": name, "arguments": arguments}],
         }
+
+    def _capability_text(self) -> str:
+        return (
+            "我现在运行在本地演示模式，主要用于验证 Agent 的核心流程。\n\n"
+            "我可以帮助你验证：\n"
+            "- 工作区摘要、文件读取、文件搜索和文件数量统计\n"
+            "- 工具调用参数是否正确\n"
+            "- 文件覆盖前的审批流程\n"
+            "- 多步计划的创建、执行、结果写回和失败诊断\n"
+            "- 任务状态、实验记录和工具调用日志\n\n"
+            "注意：当前 Web 模式默认使用规则型 demo 模型，不是真正的大模型闲聊能力。"
+            "如果要更自然的中文理解和自由问答，需要切换到真实模型。"
+        )
+
+    def _fallback_text(self) -> str:
+        return (
+            "当前是本地 demo 模型，我没有命中这句话对应的固定规则。\n\n"
+            "你可以试试这些指令：\n"
+            "- get workspace summary\n"
+            "- plans\n"
+            "- count python files\n"
+            "- show first 5 lines of README.md\n"
+            "- create plan demo :: 统计 Python 文件; 统计 Markdown 文件; 汇总结果\n"
+            "- execute next step of plan_xxx\n"
+            "- diagnose blocked step 1 of plan_xxx\n\n"
+            "如果你想让我像真实智能体一样自由理解中文问题，需要把 Web 模式切换到真实大模型。"
+        )

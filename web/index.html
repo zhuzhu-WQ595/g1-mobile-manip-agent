@@ -8,51 +8,88 @@
 </head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="mark">SA</div>
+    <aside class="sidebar" aria-label="Agent 状态与快捷操作">
+      <header class="brand">
+        <div class="mark" aria-hidden="true">SA</div>
         <div>
           <h1>Self-test Agent</h1>
-          <p>DeepSeek · 本地工具 · 文件操作</p>
+          <p>本地工具调用与计划执行实验台</p>
         </div>
-      </div>
+      </header>
 
       <section class="panel">
-        <h2>状态</h2>
-        <div class="status-row"><span>服务</span><strong id="serverStatus">检查中</strong></div>
-        <div class="status-row"><span>模型</span><strong>DeepSeek</strong></div>
-        <div class="status-row"><span>工作区</span><strong>self-test</strong></div>
+        <div class="panel-title">
+          <span>运行状态</span>
+          <span id="serverStatus" class="status-pill">检测中</span>
+        </div>
+        <div class="metric-row"><span>模式</span><strong>Agent Loop</strong></div>
+        <div class="metric-row"><span>工作区</span><strong>self-test</strong></div>
+        <div class="metric-row"><span>工具轨迹</span><strong id="traceCount">0 次</strong></div>
       </section>
 
       <section class="panel">
-        <h2>快捷操作</h2>
-        <button class="quick" data-text="list files">列出文件</button>
-        <button class="quick" data-text="read README.md">读取 README</button>
-        <button class="quick" data-text="python version">Python 版本</button>
-        <button class="quick" data-text="write notes/web-test.txt :: hello from web ui">写入测试文件</button>
+        <div class="panel-title">
+          <span>常用指令</span>
+        </div>
+        <div class="quick-grid">
+          <button class="quick" type="button" data-text="get workspace summary">工作区摘要</button>
+          <button class="quick" type="button" data-text="plans">查看计划</button>
+          <button class="quick" type="button" data-text="count python files">统计 Python</button>
+          <button class="quick" type="button" data-text="show first 5 lines of README.md">预览 README</button>
+        </div>
       </section>
 
-      <button id="resetBtn" class="secondary">重置对话</button>
+      <section class="panel">
+        <div class="panel-title">
+          <span>验证方向</span>
+        </div>
+        <ul class="check-list">
+          <li>工具选择</li>
+          <li>参数校验</li>
+          <li>权限与审批</li>
+          <li>计划执行与结果写回</li>
+        </ul>
+      </section>
+
+      <button id="resetBtn" class="ghost-button" type="button">重置对话</button>
     </aside>
 
     <main class="workspace">
       <header class="topbar">
         <div>
-          <h2>对话</h2>
-          <p>输入需求，Agent 会判断是否需要调用工具。</p>
+          <p class="eyebrow">Agent Conversation</p>
+          <h2>对话与工具执行</h2>
+        </div>
+        <div class="topbar-actions" aria-label="当前能力">
+          <span>本地验证</span>
+          <span>工具调用</span>
+          <span>计划状态</span>
         </div>
       </header>
 
       <section id="chatLog" class="chat-log" aria-live="polite"></section>
 
       <form id="chatForm" class="composer">
-        <textarea id="messageInput" rows="3" placeholder="例如：list files 或 帮我读取 README.md"></textarea>
-        <button id="sendBtn" type="submit">发送</button>
+        <div class="input-wrap">
+          <textarea
+            id="messageInput"
+            rows="2"
+            placeholder="输入自然语言指令，例如：execute next step of plan_xxx"
+            aria-label="发送给 Agent 的消息"
+          ></textarea>
+          <div class="composer-hint">Ctrl + Enter 发送</div>
+        </div>
+        <button id="sendBtn" type="submit" disabled>发送</button>
       </form>
     </main>
 
-    <aside class="trace-panel">
-      <h2>工具轨迹</h2>
+    <aside class="trace-panel" aria-label="工具调用轨迹">
+      <header class="trace-header">
+        <div>
+          <p class="eyebrow">Tool Trace</p>
+          <h2>工具调用</h2>
+        </div>
+      </header>
       <div id="traceLog" class="trace-log"></div>
     </aside>
   </div>

@@ -7,12 +7,13 @@ from typing import Any
 from ..permissions import resolve_workspace_path
 from ..state.task_store import get_task_record
 from .formatter import format_plan, format_plan_progress
-from .store import load_plans, save_plans
+from .store import load_plans, resolve_plan_ref, save_plans
 from .summary import is_summary_step, previous_step_results, summarize_previous_results
 from .tool_runner import execute_plan_tool
 
 
 def suggest_next_plan_step(plan_id: str) -> str:
+    plan_id = resolve_plan_ref(plan_id)
     plans = load_plans()
     for plan in plans:
         if plan.get("id") != plan_id:
@@ -33,6 +34,7 @@ def suggest_next_plan_step(plan_id: str) -> str:
 
 
 def execute_plan_step(plan_id: str, step_index: int) -> str:
+    plan_id = resolve_plan_ref(plan_id)
     plans = load_plans()
     for plan in plans:
         if plan.get("id") != plan_id:
@@ -80,6 +82,7 @@ def execute_plan_step(plan_id: str, step_index: int) -> str:
 
 
 def execute_next_plan_step(plan_id: str) -> str:
+    plan_id = resolve_plan_ref(plan_id)
     plans = load_plans()
     for plan in plans:
         if plan.get("id") != plan_id:

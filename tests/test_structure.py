@@ -38,6 +38,7 @@ def test_tool_registry_has_matching_handlers_and_schemas():
     assert "create_task_plan" in handler_names
     assert "get_task_plan" in handler_names
     assert "validate_task_plan" in handler_names
+    assert "run_task_cycle" in handler_names
     assert "edit_file" not in handler_names
 
 
@@ -230,6 +231,7 @@ def test_recent_tool_events_permission_is_allowed():
     check_tool_call("create_task_plan", {"task_id": "task_123", "steps": ["read README.md"]})
     check_tool_call("get_task_plan", {"task_id": "task_123"})
     check_tool_call("validate_task_plan", {"task_id": "task_123"})
+    check_tool_call("run_task_cycle", {"title": "inspect project"})
 
 
 def test_edit_approval_permission_stays_inside_workspace():
@@ -375,6 +377,79 @@ def test_model_can_generate_task_plan_but_cannot_execute_it_in_same_turn(tmp_pat
     assert [step["executor"]["mode"] for step in plan["steps"]] == ["tool", "tool", "summary"]
 
 
+def test_demo_model_routes_complete_task_cycle():
+    model = DemoModel()
+    response = model.complete(
+        [user_message("run task inspect project :: read README.md; count python files; summarize results")],
+        tools=[],
+    )
+
+    assert response["tool_calls"][0]["name"] == "run_task_cycle"
+    assert response["tool_calls"][0]["arguments"] == {
+        "title": "inspect project",
+        "steps": ["read README.md", "count python files", "summarize results"],
+    }
+
+
+def test_demo_model_routes_natural_language_project_cycle():
+    model = DemoModel()
+    response = model.complete([user_message("帮我完整检查一下当前项目结构，并总结结果")], tools=[])
+
+    assert response["tool_calls"][0]["name"] == "run_task_cycle"
+    assert response["tool_calls"][0]["arguments"] == {
+        "title": "检查项目结构",
+        "steps": ["workspace summary", "list files in agent", "read README.md", "summarize results"],
+    }
+
+
+def test_agent_returns_task_cycle_report_directly(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "README.md").write_text("cycle readme", encoding="utf-8")
+
+    from agent import permissions
+    from agent.agent_loop import Agent
+    from agent.planning import store
+    from agent.state import task_store
+
+    state_dir = tmp_path / ".agent_state"
+    monkeypatch.setattr(permissions, "WORKSPACE_ROOT", tmp_path.resolve())
+    monkeypatch.setattr(store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(store, "PLANS_FILE", state_dir / "plans.json")
+    monkeypatch.setattr(task_store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(task_store, "TASKS_FILE", state_dir / "tasks.json")
+
+    answer = Agent(DemoModel()).run_turn("run task inspect project :: read README.md; summarize results")
+
+    assert answer.startswith("Task cycle report")
+    assert "Execution trace" in answer
+    assert "Plan steps" in answer
+    assert "`read_file`" in answer
+    assert "Tool result:" not in answer
+
+
+def test_agent_executes_current_plan_alias(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "README.md").write_text("current plan readme", encoding="utf-8")
+
+    from agent import permissions
+    from agent.agent_loop import Agent
+    from agent.planning import store
+    from agent.planning.actions import create_plan
+
+    state_dir = tmp_path / ".agent_state"
+    monkeypatch.setattr(permissions, "WORKSPACE_ROOT", tmp_path.resolve())
+    monkeypatch.setattr(store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(store, "PLANS_FILE", state_dir / "plans.json")
+    create_plan("current alias plan", ["read README.md"])
+
+    trace = Agent(DemoModel()).run_turn_with_trace("execute next step of current plan")
+
+    assert trace["events"][0]["tool"] == "execute_next_plan_step"
+    assert trace["events"][0]["arguments"] == {"plan_id": "current plan"}
+    assert "Executed step 1" in trace["answer"]
+    assert "current plan readme" in trace["answer"]
+
+
 def test_system_prompt_contains_key_sections():
     assert "Current capabilities:" in SYSTEM_PROMPT
     assert "Robot-control rules:" in SYSTEM_PROMPT
@@ -395,5 +470,8 @@ def test_system_prompt_contains_key_sections():
     assert "create_task_plan" in SYSTEM_PROMPT
     assert "get_task_plan" in SYSTEM_PROMPT
     assert "validate_task_plan" in SYSTEM_PROMPT
+    assert "run_task_cycle" in SYSTEM_PROMPT
+    assert "project-structure inspection" in SYSTEM_PROMPT
+    assert "current plan" in SYSTEM_PROMPT
     assert "run pytest" in SYSTEM_PROMPT
     assert "tool <tool_name>" in SYSTEM_PROMPT

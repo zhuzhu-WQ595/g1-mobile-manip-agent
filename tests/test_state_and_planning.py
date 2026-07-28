@@ -366,6 +366,79 @@ def test_task_plan_executes_explicit_tool_steps_and_safe_edit_request(tmp_path, 
     assert (tmp_path / "README.md").read_text(encoding="utf-8") == "alpha\nneedle\nomega\n"
 
 
+def test_run_task_cycle_executes_end_to_end(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "README.md").write_text("cycle readme", encoding="utf-8")
+    (tmp_path / "sample.py").write_text("print('hello')", encoding="utf-8")
+
+    from agent import permissions
+    from agent.planning import store
+    from agent.planning.lifecycle import run_task_cycle
+    from agent.state import task_store
+
+    state_dir = tmp_path / ".agent_state"
+    monkeypatch.setattr(permissions, "WORKSPACE_ROOT", tmp_path.resolve())
+    monkeypatch.setattr(store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(store, "PLANS_FILE", state_dir / "plans.json")
+    monkeypatch.setattr(task_store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(task_store, "TASKS_FILE", state_dir / "tasks.json")
+
+    result = run_task_cycle(
+        "inspect project",
+        ["read README.md", "count python files", "summarize results"],
+    )
+
+    task = task_store._load()[0]
+    plan = store.load_plans()[0]
+
+    assert "Task cycle report" in result
+    assert f"| Task ID | {task['id']} |" in result
+    assert f"| Plan ID | {plan['id']} |" in result
+    assert "| Task status | done |" in result
+    assert "Execution trace" in result
+    assert "Plan steps" in result
+    assert "`create_task`" in result
+    assert "`create_task_plan`" in result
+    assert "`read_file`" in result
+    assert "`count_files_by_extension`" in result
+    assert "`summary`" in result
+    assert "`complete_task`" in result
+    assert task["status"] == "done"
+    assert task["plan_id"] == plan["id"]
+    assert task["result"].startswith("Progress: 3/3 done")
+    assert [step["status"] for step in plan["steps"]] == ["done", "done", "done"]
+
+
+def test_plan_aliases_resolve_to_recent_active_plan(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "README.md").write_text("alias readme", encoding="utf-8")
+
+    from agent import permissions
+    from agent.planning import store
+    from agent.planning.actions import create_plan, update_plan_step
+    from agent.planning.executor import execute_next_plan_step, suggest_next_plan_step
+
+    state_dir = tmp_path / ".agent_state"
+    monkeypatch.setattr(permissions, "WORKSPACE_ROOT", tmp_path.resolve())
+    monkeypatch.setattr(store, "STATE_DIR", state_dir)
+    monkeypatch.setattr(store, "PLANS_FILE", state_dir / "plans.json")
+
+    created = create_plan("alias plan", ["read README.md", "summarize results"])
+    plan_id = created.split(":", 1)[0]
+
+    assert store.resolve_plan_ref("current plan") == plan_id
+    assert store.resolve_plan_ref("最近计划") == plan_id
+    assert f"Plan: {plan_id}" in suggest_next_plan_step("latest plan")
+
+    first = execute_next_plan_step("current plan")
+    assert "Executed step 1" in first
+    assert "alias readme" in first
+
+    second = execute_next_plan_step("刚才的计划")
+    assert "Executed step 2" in second
+    assert "pending" in update_plan_step("recent plan", 2, "pending")
+
+
 def _configure_approval_store(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 

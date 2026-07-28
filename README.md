@@ -130,6 +130,9 @@ create task plan current task :: search README; preview first 10 lines of README
 create task plan current task :: tool list_files {"path": "agent"}; tool search_files {"path": "agent", "query": "executor"}; summarize results
 task plan task_123
 validate task plan task_123
+run task inspect project :: workspace summary; list files in agent; read README.md; summarize results
+运行任务 检查项目结构 :: workspace summary; list files in agent; read README.md; summarize results
+帮我完整检查一下当前项目结构，并总结结果
 为当前任务创建计划 :: read README.md; count python files; summarize results
 查看当前任务计划
 验证当前任务计划

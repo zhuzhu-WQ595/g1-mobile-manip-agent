@@ -11,6 +11,7 @@ from .actions import (
 )
 from .diagnosis import diagnose_blocked_step
 from .executor import execute_next_plan_step, execute_plan_step, suggest_next_plan_step
+from .lifecycle import run_task_cycle
 from .store import PLANS_FILE, STATE_DIR, VALID_STEP_STATUS
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     "get_task_plan",
     "list_plans",
     "resolve_blocked_step",
+    "run_task_cycle",
     "suggest_next_plan_step",
     "update_plan_step",
     "validate_task_plan",

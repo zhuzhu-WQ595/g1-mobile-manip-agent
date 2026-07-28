@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from .store import load_plans, save_plans
+from .store import load_plans, resolve_plan_ref, save_plans
 from .summary import is_summary_step, previous_step_results
 
 
 def diagnose_blocked_step(plan_id: str, step_index: int) -> str:
+    plan_id = resolve_plan_ref(plan_id)
     plans = load_plans()
     for plan in plans:
         if plan.get("id") != plan_id:

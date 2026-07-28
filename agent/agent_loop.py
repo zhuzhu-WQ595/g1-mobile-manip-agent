@@ -37,15 +37,18 @@ def requested_preview_lines(text: str) -> int | None:
 
 def requested_plan_execution(text: str) -> dict[str, Any] | None:
     stripped = text.strip()
-    match = re.match(r"^execute next step of\s+(plan_\d+)$", stripped, flags=re.IGNORECASE)
+    plan_ref = r"<?(plan_\d+|current(?: plan)?|latest(?: plan)?|last(?: plan)?|recent(?: plan)?|当前计划|当前|最新计划|最新|最近计划|最近|刚才的计划|刚才那个计划|上一个计划)>?"
+    match = re.match(rf"^execute next step of\s+{plan_ref}$", stripped, flags=re.IGNORECASE)
+    if not match:
+        match = re.match(rf"^执行{plan_ref}下一步$", stripped)
     if match:
-        return {"tool": "execute_next_plan_step", "plan_id": match.group(1)}
+        return {"tool": "execute_next_plan_step", "plan_id": clean_plan_ref(match.group(1))}
 
-    match = re.match(r"^execute step\s+(\d+)\s+of\s+(plan_\d+)$", stripped, flags=re.IGNORECASE)
+    match = re.match(rf"^execute step\s+(\d+)\s+of\s+{plan_ref}$", stripped, flags=re.IGNORECASE)
     if match:
         return {
             "tool": "execute_plan_step",
-            "plan_id": match.group(2),
+            "plan_id": clean_plan_ref(match.group(2)),
             "step_index": int(match.group(1)),
         }
 
@@ -53,8 +56,9 @@ def requested_plan_execution(text: str) -> dict[str, Any] | None:
 
 
 def requested_blocked_resolution(text: str) -> dict[str, Any] | None:
+    plan_ref = r"<?(plan_\d+|current(?: plan)?|latest(?: plan)?|last(?: plan)?|recent(?: plan)?|当前计划|当前|最新计划|最新|最近计划|最近|刚才的计划|刚才那个计划|上一个计划)>?"
     match = re.match(
-        r"^resolve blocked step\s+(\d+)\s+of\s+(plan_\d+)\s+::\s*(.+)$",
+        rf"^resolve blocked step\s+(\d+)\s+of\s+{plan_ref}\s+::\s*(.+)$",
         text.strip(),
         flags=re.DOTALL | re.IGNORECASE,
     )
@@ -63,14 +67,15 @@ def requested_blocked_resolution(text: str) -> dict[str, Any] | None:
     return {
         "tool": "resolve_blocked_step",
         "step_index": int(match.group(1)),
-        "plan_id": match.group(2),
+        "plan_id": clean_plan_ref(match.group(2)),
         "result": match.group(3).strip(),
     }
 
 
 def requested_blocked_diagnosis(text: str) -> dict[str, Any] | None:
+    plan_ref = r"<?(plan_\d+|current(?: plan)?|latest(?: plan)?|last(?: plan)?|recent(?: plan)?|当前计划|当前|最新计划|最新|最近计划|最近|刚才的计划|刚才那个计划|上一个计划)>?"
     match = re.match(
-        r"^diagnose blocked step\s+(\d+)\s+of\s+(plan_\d+)$",
+        rf"^diagnose blocked step\s+(\d+)\s+of\s+{plan_ref}$",
         text.strip(),
         flags=re.IGNORECASE,
     )
@@ -79,7 +84,7 @@ def requested_blocked_diagnosis(text: str) -> dict[str, Any] | None:
     return {
         "tool": "diagnose_blocked_step",
         "step_index": int(match.group(1)),
-        "plan_id": match.group(2),
+        "plan_id": clean_plan_ref(match.group(2)),
     }
 
 
@@ -100,6 +105,10 @@ TASK_REF_PATTERN = (
 
 
 def clean_task_ref(value: str) -> str:
+    return value.strip().strip("<>").lower()
+
+
+def clean_plan_ref(value: str) -> str:
     return value.strip().strip("<>").lower()
 
 
@@ -414,7 +423,7 @@ def final_tool_error_message(result: str) -> str:
 
 
 def should_stop_after_tool_success(name: str, user_text: str) -> bool:
-    if name == "get_recent_tool_events":
+    if name in {"get_recent_tool_events", "run_task_cycle"}:
         return True
     exact_tool = requested_exact_tool(user_text)
     if exact_tool is not None:

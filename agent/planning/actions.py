@@ -5,7 +5,7 @@ import time
 from ..state.task_store import attach_plan_to_task, get_task_record, resolve_task_ref
 from .formatter import format_plan, format_plan_progress
 from .step_mapping import describe_step_mapping, map_plan_step
-from .store import VALID_STEP_STATUS, load_plans, save_plans
+from .store import VALID_STEP_STATUS, load_plans, resolve_plan_ref, save_plans
 
 
 def create_plan(title: str, steps: list[str] | str) -> str:
@@ -116,6 +116,7 @@ def list_plans() -> str:
 
 
 def update_plan_step(plan_id: str, step_index: int, status: str) -> str:
+    plan_id = resolve_plan_ref(plan_id)
     if status not in VALID_STEP_STATUS:
         return f"Invalid status: {status}. Use one of: {', '.join(sorted(VALID_STEP_STATUS))}"
     plans = load_plans()
@@ -139,6 +140,7 @@ def update_plan_step(plan_id: str, step_index: int, status: str) -> str:
 
 
 def resolve_blocked_step(plan_id: str, step_index: int, result: str) -> str:
+    plan_id = resolve_plan_ref(plan_id)
     clean_result = result.strip()
     if not clean_result:
         raise ValueError("result is required")
