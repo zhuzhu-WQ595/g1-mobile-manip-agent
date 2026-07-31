@@ -69,6 +69,33 @@ tags
 
 普通 Agent 根据当前目标选择相关能力并缩小工具 Schema；无法识别的开放目标回退到完整能力目录。确定性路由要求的工具会自动并入本轮能力集合，任何未被选择的工具调用都会在执行前被拒绝。
 
+### 执行资源注册与选择
+
+位置：
+
+```text
+contracts/resource.py               执行资源和运行状态协议
+agent/scheduling/resources.py       资源注册、注销和运行状态更新
+agent/scheduling/selector.py        能力到具体资源的选择规则
+agent/scheduling/dispatcher.py      使用选择结果执行请求
+```
+
+Capability 表示“系统会做什么”，ExecutionResource 表示“当前由谁执行”。一个资源登记：
+
+```text
+resource_id
+execution_target
+capabilities
+status       available / degraded / busy / offline
+load         0.0 - 1.0
+priority
+metadata
+```
+
+调用方默认不填写 `resource_id`。Selector 先筛选支持目标 Capability 和 execution target 的资源，排除 busy 和 offline，再依次比较可用状态、负载、优先级和稳定 ID。显式指定资源只用于管理、调试或固定路由，并且仍需通过能力和状态检查。
+
+默认环境为四种 execution target 分别注册一个内置逻辑资源。接入多台机器人或多个外部执行器时，为相同 Capability 注册不同资源及其 Handler 即可，不需要修改 Agent 主循环。
+
 ### 统一执行协议
 
 位置：`contracts/execution.py`
@@ -96,7 +123,7 @@ cancelled
 timed_out
 ```
 
-普通工具和 GoalRunner 会为每次调用创建 `ExecutionRequest`，并将结果写成 `ExecutionEvent`。事件保留 `tool`、`arguments` 等调试字段，同时增加执行 ID、Capability、执行目标、结构化错误和观察数据。机器人 `ActionStatus` 会映射到同一状态集合，但目标运行整体的 `completed/blocked` 仍属于 GoalRunner 结果，不与单次执行状态混用。
+普通工具和 GoalRunner 会为每次调用创建 `ExecutionRequest`，Dispatcher 选择具体资源后将结果写成 `ExecutionEvent`。事件保留 `tool`、`arguments` 等调试字段，同时增加执行 ID、Capability、执行目标、资源 ID、结构化错误和观察数据。机器人 `ActionStatus` 会映射到同一状态集合，但目标运行整体的 `completed/blocked` 仍属于 GoalRunner 结果，不与单次执行状态混用。
 
 ### 统一执行分发
 
@@ -105,6 +132,7 @@ timed_out
 Dispatcher 是运行时唯一的工具执行入口，职责是：
 
 - 根据 Capability 校验 `execution_target`
+- 根据 Capability、状态、负载和优先级选择具体执行资源
 - 将请求分发到 `local_toolkit`、`agent_state`、`robot_gateway` 或 `remote_service`
 - 在 Handler 执行前统一调用 `check_tool_call()`
 - 将成功或异常统一转换为 `ExecutionEvent`

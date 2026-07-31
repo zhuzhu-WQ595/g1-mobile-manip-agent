@@ -7,6 +7,7 @@ from typing import Any
 
 from contracts.capability import CapabilitySpec
 from contracts.execution import ExecutionEvent, ExecutionRequest
+from contracts.resource import ExecutionResource
 from services.registry import ServiceRegistry
 
 
@@ -28,6 +29,7 @@ class HttpRemoteServiceExecutor:
         self,
         request: ExecutionRequest,
         capability: CapabilitySpec,
+        resource: ExecutionResource,
     ) -> ExecutionEvent:
         binding = REMOTE_CAPABILITY_BINDINGS.get(capability.tool_name)
         if binding is None:

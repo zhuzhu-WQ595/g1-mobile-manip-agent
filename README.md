@@ -150,8 +150,8 @@ created -> accepted -> running -> waiting_feedback
 ```
 
 The trace keeps `tool` and `arguments` for debugging while adding
-`execution_id`, `capability`, `execution_target`, structured `error`, optional
-`observation`, and the normalized status.
+`execution_id`, `capability`, `execution_target`, the selected `resource_id`,
+structured `error`, optional `observation`, and the normalized status.
 
 `agent/scheduling/dispatcher.py` is the single runtime execution entry point.
 It validates the capability-to-target binding, runs permission checks, and
@@ -159,6 +159,14 @@ routes requests to `local_toolkit`, `agent_state`, `robot_gateway`, or
 `remote_service`. The Agent
 loop and GoalRunner no longer call `TOOL_HANDLERS` directly. A future external
 service can reuse the same `ExecutionRequest` and `ExecutionEvent` contract.
+
+Concrete execution resources are registered separately from capabilities.
+`agent/scheduling/selector.py` automatically filters resources by capability,
+target, and runtime status, then prefers an available resource with lower load
+and higher priority. Callers normally omit `resource_id`; an explicit resource
+is supported only for administration and deterministic tests. Resource-specific
+handlers allow two robots or services offering the same capability to use
+different adapters without changing the Agent loop.
 
 ## Verify the remote service boundary
 

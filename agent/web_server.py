@@ -16,7 +16,15 @@ from .models import load_model_from_env
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB_ROOT = ROOT / "web"
-os.environ["AGENT_PROVIDER"] = os.environ.get("AGENT_WEB_PROVIDER", "demo")
+
+
+def configure_web_provider() -> None:
+    web_provider = os.environ.get("AGENT_WEB_PROVIDER", "").strip()
+    if web_provider:
+        os.environ["AGENT_PROVIDER"] = web_provider
+
+
+configure_web_provider()
 
 
 def configure_console_encoding() -> None:

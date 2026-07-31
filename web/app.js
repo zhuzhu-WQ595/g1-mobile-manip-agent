@@ -112,7 +112,8 @@ function renderTrace(events = []) {
     title.className = "trace-title";
 
     const name = document.createElement("span");
-    name.textContent = event.tool || "unknown_tool";
+    const resource = event.resource_id ? ` · ${event.resource_id}` : "";
+    name.textContent = `${event.tool || "unknown_tool"}${resource}`;
 
     const badge = document.createElement("span");
     const failedStatuses = new Set(["failed", "cancelled", "timed_out", "error"]);

@@ -85,6 +85,7 @@ class ExecutionError:
 class ExecutionRequest:
     capability: str
     execution_target: str
+    resource_id: str | None = None
     arguments: dict[str, Any] = field(default_factory=dict)
     execution_id: str = field(default_factory=lambda: f"exec_{uuid4().hex}")
     timeout_s: float = 30.0
@@ -104,6 +105,7 @@ class ExecutionRequest:
             "execution_id": self.execution_id,
             "capability": self.capability,
             "execution_target": self.execution_target,
+            "resource_id": self.resource_id,
             "arguments": self.arguments,
             "timeout_s": self.timeout_s,
             "created_at": self.created_at,
@@ -118,6 +120,7 @@ class ExecutionRequest:
             execution_id=str(data.get("execution_id") or f"exec_{uuid4().hex}"),
             capability=str(data.get("capability", "")),
             execution_target=str(data.get("execution_target", "")),
+            resource_id=str(data["resource_id"]) if data.get("resource_id") else None,
             arguments=arguments if isinstance(arguments, dict) else {},
             timeout_s=float(data.get("timeout_s", 30.0)),
             created_at=str(data.get("created_at") or utc_now()),
@@ -138,6 +141,7 @@ class ExecutionRequest:
             execution_id=self.execution_id,
             capability=self.capability,
             execution_target=self.execution_target,
+            resource_id=self.resource_id,
             status=status,
             progress=progress,
             result=result,
@@ -153,6 +157,7 @@ class ExecutionEvent:
     capability: str
     execution_target: str
     status: ExecutionStatus
+    resource_id: str | None = None
     occurred_at: str = field(default_factory=utc_now)
     progress: float | None = None
     result: Any = None
@@ -181,6 +186,7 @@ class ExecutionEvent:
             "execution_id": self.execution_id,
             "capability": self.capability,
             "execution_target": self.execution_target,
+            "resource_id": self.resource_id,
             "status": self.status.value,
             "occurred_at": self.occurred_at,
             "progress": self.progress,
@@ -200,6 +206,7 @@ class ExecutionEvent:
             capability=str(data.get("capability", "")),
             execution_target=str(data.get("execution_target", "")),
             status=normalize_execution_status(str(data.get("status", "created"))),
+            resource_id=str(data["resource_id"]) if data.get("resource_id") else None,
             occurred_at=str(data.get("occurred_at") or utc_now()),
             progress=float(data["progress"]) if data.get("progress") is not None else None,
             result=data.get("result"),
@@ -214,6 +221,7 @@ class ExecutionResult:
     execution_id: str
     capability: str
     status: ExecutionStatus
+    resource_id: str | None = None
     result: Any = None
     error: ExecutionError | None = None
     completed_at: str = field(default_factory=utc_now)
@@ -227,6 +235,7 @@ class ExecutionResult:
             "execution_id": self.execution_id,
             "capability": self.capability,
             "status": self.status.value,
+            "resource_id": self.resource_id,
             "result": self.result,
             "error": self.error.to_dict() if self.error is not None else None,
             "completed_at": self.completed_at,
@@ -240,6 +249,7 @@ class ExecutionResult:
             execution_id=event.execution_id,
             capability=event.capability,
             status=event.status,
+            resource_id=event.resource_id,
             result=event.result,
             error=event.error,
             completed_at=event.occurred_at,

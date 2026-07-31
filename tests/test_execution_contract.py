@@ -15,6 +15,7 @@ def test_execution_request_and_event_round_trip():
     request = ExecutionRequest(
         capability="workspace.read_file",
         execution_target="local_toolkit",
+        resource_id="local_toolkit.default",
         arguments={"path": "README.md"},
         execution_id="exec_test",
     )

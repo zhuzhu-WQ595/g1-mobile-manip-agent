@@ -10,6 +10,7 @@ from .execution import (
     normalize_execution_status,
 )
 from .observation import Observation
+from .resource import ExecutionResource, ResourceStatus
 from .robot import ActionStatus, RobotCommand, RobotResult, RobotState
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "ExecutionError",
     "ExecutionEvent",
     "ExecutionRequest",
+    "ExecutionResource",
     "ExecutionResult",
     "ExecutionStatus",
     "normalize_execution_status",
@@ -27,4 +29,5 @@ __all__ = [
     "RobotCommand",
     "RobotResult",
     "RobotState",
+    "ResourceStatus",
 ]

@@ -52,6 +52,8 @@ def test_robot_runtime_does_not_depend_on_agent_package():
 def test_canonical_package_imports_work():
     from agent.execution import GoalRunner
     from agent.routing import requested_task_action
+    from agent.scheduling import ResourceRegistry, ResourceSelector
+    from contracts.resource import ExecutionResource
     from contracts.robot import RobotCommand
     from evaluations.runner import EvaluationCase
     from robot_runtime.adapter import RobotRuntimeAdapter
@@ -62,6 +64,9 @@ def test_canonical_package_imports_work():
     assert isinstance(SYSTEM_PROMPT, str)
     assert GoalRunner is not None
     assert callable(requested_task_action)
+    assert ExecutionResource is not None
+    assert ResourceRegistry is not None
+    assert ResourceSelector is not None
     assert RobotCommand is not None
     assert EvaluationCase is not None
     assert RobotGateway is not None

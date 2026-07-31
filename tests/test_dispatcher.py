@@ -31,6 +31,7 @@ def test_dispatcher_routes_registered_targets(tool_name, expected_target):
 
     assert event.status is ExecutionStatus.SUCCEEDED
     assert event.execution_target == expected_target
+    assert event.resource_id == f"{expected_target}.default"
     assert event.result == f"ran:{tool_name}"
     assert event.metadata["tool"] == tool_name
 
