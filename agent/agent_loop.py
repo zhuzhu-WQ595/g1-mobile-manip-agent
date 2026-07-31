@@ -1,18 +1,32 @@
 from __future__ import annotations
 
-import re
 import sys
-
 from typing import Any
 
-from .context import build_system_prompt
-from .hooks import record_tool_event
-from .message_builder import assistant_message, assistant_tool_call_message, tool_result_message, user_message
-from .model_adapter import ModelAdapter
-from .permissions import check_tool_call
-from .tools import TOOL_HANDLERS, TOOL_SCHEMAS
+from contracts.execution import ExecutionError, ExecutionRequest, ExecutionStatus
 
-#安全打印文本，处理 Unicode 编码错误。
+from .capabilities import CAPABILITY_REGISTRY
+from .context import build_system_prompt
+from .message_builder import (
+    assistant_message,
+    assistant_tool_call_message,
+    tool_result_message,
+    tool_result_text,
+    user_message,
+)
+from .models import ModelAdapter
+from .routing.intent_parser import (
+    check_user_requested_arguments,
+    final_tool_error_message,
+    forced_plan_tool_calls,
+    requested_task_action,
+    should_stop_after_tool_error,
+    should_stop_after_tool_success,
+)
+from .robot.policy import check_motion_against_latest_perception
+from .scheduling import DISPATCHER
+from .state.event_log import record_tool_event
+
 
 def safe_print(text: str) -> None:
     try:
@@ -23,422 +37,6 @@ def safe_print(text: str) -> None:
         print(safe_text)
 
 
-def requested_preview_lines(text: str) -> int | None:
-    patterns = [
-        r"^(?:show|preview|read)\s+first\s+(\d+)\s+lines?\s+of\s+.+$",
-        r"^preview\s+.+?\s+(\d+)\s+lines?$",
-    ]
-    for pattern in patterns:
-        match = re.match(pattern, text.strip(), flags=re.IGNORECASE)
-        if match:
-            return int(match.group(1))
-    return None
-
-
-def requested_plan_execution(text: str) -> dict[str, Any] | None:
-    stripped = text.strip()
-    plan_ref = r"<?(plan_\d+|current(?: plan)?|latest(?: plan)?|last(?: plan)?|recent(?: plan)?|当前计划|当前|最新计划|最新|最近计划|最近|刚才的计划|刚才那个计划|上一个计划)>?"
-    match = re.match(rf"^execute next step of\s+{plan_ref}$", stripped, flags=re.IGNORECASE)
-    if not match:
-        match = re.match(rf"^执行{plan_ref}下一步$", stripped)
-    if match:
-        return {"tool": "execute_next_plan_step", "plan_id": clean_plan_ref(match.group(1))}
-
-    match = re.match(rf"^execute step\s+(\d+)\s+of\s+{plan_ref}$", stripped, flags=re.IGNORECASE)
-    if match:
-        return {
-            "tool": "execute_plan_step",
-            "plan_id": clean_plan_ref(match.group(2)),
-            "step_index": int(match.group(1)),
-        }
-
-    return None
-
-
-def requested_blocked_resolution(text: str) -> dict[str, Any] | None:
-    plan_ref = r"<?(plan_\d+|current(?: plan)?|latest(?: plan)?|last(?: plan)?|recent(?: plan)?|当前计划|当前|最新计划|最新|最近计划|最近|刚才的计划|刚才那个计划|上一个计划)>?"
-    match = re.match(
-        rf"^resolve blocked step\s+(\d+)\s+of\s+{plan_ref}\s+::\s*(.+)$",
-        text.strip(),
-        flags=re.DOTALL | re.IGNORECASE,
-    )
-    if not match:
-        return None
-    return {
-        "tool": "resolve_blocked_step",
-        "step_index": int(match.group(1)),
-        "plan_id": clean_plan_ref(match.group(2)),
-        "result": match.group(3).strip(),
-    }
-
-
-def requested_blocked_diagnosis(text: str) -> dict[str, Any] | None:
-    plan_ref = r"<?(plan_\d+|current(?: plan)?|latest(?: plan)?|last(?: plan)?|recent(?: plan)?|当前计划|当前|最新计划|最新|最近计划|最近|刚才的计划|刚才那个计划|上一个计划)>?"
-    match = re.match(
-        rf"^diagnose blocked step\s+(\d+)\s+of\s+{plan_ref}$",
-        text.strip(),
-        flags=re.IGNORECASE,
-    )
-    if not match:
-        return None
-    return {
-        "tool": "diagnose_blocked_step",
-        "step_index": int(match.group(1)),
-        "plan_id": clean_plan_ref(match.group(2)),
-    }
-
-
-def requested_exact_tool(text: str) -> dict[str, Any] | None:
-    lowered = text.strip().lower()
-    if lowered in {"plans", "list plans"}:
-        return {"tool": "list_plans", "arguments": {}}
-    return None
-
-
-TASK_REF_PATTERN = (
-    r"<?("
-    r"task_\d+|"
-    r"current(?: task)?|latest(?: task)?|last(?: task)?|recent(?: task)?|"
-    r"当前任务|当前|最新任务|最新|最近任务|最近|刚才的任务|刚才那个任务|上一个任务"
-    r")>?"
-)
-
-
-def clean_task_ref(value: str) -> str:
-    return value.strip().strip("<>").lower()
-
-
-def clean_plan_ref(value: str) -> str:
-    return value.strip().strip("<>").lower()
-
-
-def requested_task_action(text: str) -> dict[str, Any] | None:
-    stripped = text.strip()
-    lowered = stripped.lower()
-    task_id = TASK_REF_PATTERN
-
-    match = re.match(r"^(?:创建任务|新建任务)\s+(.+?)(?:\s+::\s*(.*))?$", stripped, flags=re.DOTALL)
-    if match:
-        return {
-            "tool": "create_task",
-            "arguments": {"title": match.group(1).strip(), "detail": (match.group(2) or "").strip()},
-        }
-
-    plan_patterns = [
-        (rf"^为(?:任务)?\s*{task_id}\s*创建计划\s*::\s*(.+)$", "create_task_plan"),
-        (rf"^验证(?:任务)?\s*{task_id}\s*(?:的)?计划$", "validate_task_plan"),
-        (rf"^查看(?:任务)?\s*{task_id}\s*(?:的)?计划$", "get_task_plan"),
-    ]
-    for pattern, tool in plan_patterns:
-        match = re.match(pattern, stripped, flags=re.DOTALL)
-        if not match:
-            continue
-        arguments: dict[str, Any] = {"task_id": clean_task_ref(match.group(1))}
-        if tool == "create_task_plan":
-            arguments["steps"] = [step.strip() for step in match.group(2).split(";") if step.strip()]
-        return {"tool": tool, "arguments": arguments}
-
-    lifecycle_patterns = [
-        (rf"^查看(?:任务)?\s*{task_id}\s*(?:的)?详情$", "get_task_details", None),
-        (rf"^开始(?:任务)?\s*{task_id}$", "start_task", None),
-        (rf"^重试(?:任务)?\s*{task_id}$", "retry_task", None),
-        (rf"^完成(?:任务)?\s*{task_id}(?:\s+::\s*(.*))?$", "complete_task", "result"),
-        (rf"^标记(?:任务)?\s*{task_id}\s*失败\s*::\s*(.+)$", "fail_task", "error"),
-        (rf"^取消(?:任务)?\s*{task_id}(?:\s+::\s*(.*))?$", "cancel_task", "reason"),
-    ]
-    for pattern, tool, field in lifecycle_patterns:
-        match = re.match(pattern, stripped, flags=re.DOTALL)
-        if not match:
-            continue
-        arguments = {"task_id": clean_task_ref(match.group(1))}
-        if field:
-            arguments[field] = (match.group(2) or "").strip()
-        return {"tool": tool, "arguments": arguments}
-
-    if stripped in {"任务", "任务列表", "列出任务"}:
-        return {"tool": "list_tasks", "arguments": {}}
-
-    match = re.match(
-        rf"^create task plan\s+{task_id}\s+::\s*(.+)$",
-        stripped,
-        flags=re.DOTALL | re.IGNORECASE,
-    )
-    if not match:
-        match = re.match(rf"^为任务\s*{task_id}\s*创建计划\s*::\s*(.+)$", stripped, flags=re.DOTALL)
-    if match:
-        steps = [step.strip() for step in match.group(2).split(";") if step.strip()]
-        return {
-            "tool": "create_task_plan",
-            "arguments": {"task_id": clean_task_ref(match.group(1)), "steps": steps},
-        }
-
-    match = re.match(rf"^validate task plan\s+{task_id}$", stripped, flags=re.IGNORECASE)
-    if match:
-        return {"tool": "validate_task_plan", "arguments": {"task_id": clean_task_ref(match.group(1))}}
-
-    match = re.match(rf"^(?:task plan|show task plan)\s+{task_id}$", stripped, flags=re.IGNORECASE)
-    if not match:
-        match = re.match(rf"^查看(?:任务)?\s*{task_id}\s*(?:的)?计划$", stripped)
-    if match:
-        return {"tool": "get_task_plan", "arguments": {"task_id": clean_task_ref(match.group(1))}}
-
-    match = re.match(r"^create task\s+(.+?)(?:\s+::\s*(.*))?$", stripped, flags=re.DOTALL | re.IGNORECASE)
-    if match:
-        return {
-            "tool": "create_task",
-            "arguments": {"title": match.group(1).strip(), "detail": (match.group(2) or "").strip()},
-        }
-
-    match = re.match(r"^(?:创建任务|新建任务)\s+(.+?)(?:\s+::\s*(.*))?$", stripped, flags=re.DOTALL)
-    if match:
-        return {
-            "tool": "create_task",
-            "arguments": {"title": match.group(1).strip(), "detail": (match.group(2) or "").strip()},
-        }
-
-    if lowered in {"tasks", "list tasks"} or stripped in {"任务", "任务列表", "列出任务"}:
-        return {"tool": "list_tasks", "arguments": {}}
-
-    patterns = [
-        (rf"^(?:task details|show task|task)\s+{task_id}$", "get_task_details", None, re.IGNORECASE),
-        (rf"^查看(?:任务)?\s*{task_id}\s*(?:的)?详情$", "get_task_details", None, 0),
-        (rf"^start(?: task)?\s+{task_id}$", "start_task", None, re.IGNORECASE),
-        (rf"^开始(?:任务)?\s*{task_id}$", "start_task", None, 0),
-        (rf"^retry(?: task)?\s+{task_id}$", "retry_task", None, re.IGNORECASE),
-        (rf"^重试(?:任务)?\s*{task_id}$", "retry_task", None, 0),
-    ]
-    for pattern, tool, _, flags in patterns:
-        match = re.match(pattern, stripped, flags=flags)
-        if match:
-            return {"tool": tool, "arguments": {"task_id": clean_task_ref(match.group(1))}}
-
-    match = re.match(
-        rf"^complete(?: task)?\s+{task_id}(?:\s+::\s*(.*))?$",
-        stripped,
-        flags=re.DOTALL | re.IGNORECASE,
-    )
-    if not match:
-        match = re.match(rf"^完成(?:任务)?\s*{task_id}(?:\s+::\s*(.*))?$", stripped, flags=re.DOTALL)
-    if match:
-        return {
-            "tool": "complete_task",
-            "arguments": {"task_id": clean_task_ref(match.group(1)), "result": (match.group(2) or "").strip()},
-        }
-
-    match = re.match(
-        rf"^fail(?: task)?\s+{task_id}\s+::\s*(.+)$",
-        stripped,
-        flags=re.DOTALL | re.IGNORECASE,
-    )
-    if not match:
-        match = re.match(rf"^标记(?:任务)?\s*{task_id}\s*失败\s*::\s*(.+)$", stripped, flags=re.DOTALL)
-    if match:
-        return {
-            "tool": "fail_task",
-            "arguments": {"task_id": clean_task_ref(match.group(1)), "error": match.group(2).strip()},
-        }
-
-    match = re.match(
-        rf"^cancel(?: task)?\s+{task_id}(?:\s+::\s*(.*))?$",
-        stripped,
-        flags=re.DOTALL | re.IGNORECASE,
-    )
-    if not match:
-        match = re.match(rf"^取消(?:任务)?\s*{task_id}(?:\s+::\s*(.*))?$", stripped, flags=re.DOTALL)
-    if match:
-        return {
-            "tool": "cancel_task",
-            "arguments": {"task_id": clean_task_ref(match.group(1)), "reason": (match.group(2) or "").strip()},
-        }
-
-    return None
-
-
-def forced_plan_tool_calls(text: str) -> list[dict[str, Any]] | None:
-    requested_task = requested_task_action(text)
-    if requested_task is not None:
-        return [
-            {
-                "id": "forced_task_call_1",
-                "name": requested_task["tool"],
-                "arguments": requested_task["arguments"],
-            }
-        ]
-
-    exact_tool = requested_exact_tool(text)
-    if exact_tool is not None:
-        return [
-            {
-                "id": "forced_exact_call_1",
-                "name": exact_tool["tool"],
-                "arguments": exact_tool["arguments"],
-            }
-        ]
-
-    requested_plan = requested_plan_execution(text)
-    requested_diagnosis = requested_blocked_diagnosis(text)
-    if requested_diagnosis is not None:
-        return [
-            {
-                "id": "forced_diagnosis_call_1",
-                "name": requested_diagnosis["tool"],
-                "arguments": {
-                    "plan_id": requested_diagnosis["plan_id"],
-                    "step_index": requested_diagnosis["step_index"],
-                },
-            }
-        ]
-
-    requested_resolution = requested_blocked_resolution(text)
-    if requested_resolution is not None:
-        return [
-            {
-                "id": "forced_resolution_call_1",
-                "name": requested_resolution["tool"],
-                "arguments": {
-                    "plan_id": requested_resolution["plan_id"],
-                    "step_index": requested_resolution["step_index"],
-                    "result": requested_resolution["result"],
-                },
-            }
-        ]
-
-    if requested_plan is None:
-        return None
-
-    if requested_plan["tool"] == "execute_next_plan_step":
-        arguments = {"plan_id": requested_plan["plan_id"]}
-    else:
-        arguments = {
-            "plan_id": requested_plan["plan_id"],
-            "step_index": requested_plan["step_index"],
-        }
-
-    return [
-        {
-            "id": "forced_plan_call_1",
-            "name": requested_plan["tool"],
-            "arguments": arguments,
-        }
-    ]
-
-
-def check_user_requested_arguments(name: str, arguments: dict[str, Any], user_text: str) -> None:
-    requested_task = requested_task_action(user_text)
-    if requested_task is not None:
-        if name != requested_task["tool"]:
-            raise PermissionError(f"This request must use {requested_task['tool']} only.")
-        if arguments != requested_task["arguments"]:
-            raise PermissionError("Tool call changed the requested task arguments")
-        return
-
-    exact_tool = requested_exact_tool(user_text)
-    if exact_tool is not None:
-        if name != exact_tool["tool"]:
-            raise PermissionError(f"This request must use {exact_tool['tool']} only.")
-        return
-
-    requested_plan = requested_plan_execution(user_text)
-    requested_diagnosis = requested_blocked_diagnosis(user_text)
-    if requested_diagnosis is not None:
-        if name != requested_diagnosis["tool"]:
-            raise PermissionError("This request must use diagnose_blocked_step.")
-        if str(arguments.get("plan_id")) != requested_diagnosis["plan_id"]:
-            raise PermissionError("Tool call changed the requested plan_id")
-        if int(arguments.get("step_index", 0)) != requested_diagnosis["step_index"]:
-            raise PermissionError("Tool call changed the requested step_index")
-        return
-
-    requested_resolution = requested_blocked_resolution(user_text)
-    if requested_resolution is not None:
-        if name != requested_resolution["tool"]:
-            raise PermissionError("This request must use resolve_blocked_step.")
-        if str(arguments.get("plan_id")) != requested_resolution["plan_id"]:
-            raise PermissionError("Tool call changed the requested plan_id")
-        if int(arguments.get("step_index", 0)) != requested_resolution["step_index"]:
-            raise PermissionError("Tool call changed the requested step_index")
-        if str(arguments.get("result", "")).strip() != requested_resolution["result"]:
-            raise PermissionError("Tool call changed the user-provided result")
-        return
-
-    if requested_plan is not None:
-        expected_tool = requested_plan["tool"]
-        if name != expected_tool:
-            raise PermissionError(
-                f"This request must use {expected_tool}. "
-                "Do not switch to another tool while executing a plan step."
-            )
-        if str(arguments.get("plan_id")) != requested_plan["plan_id"]:
-            raise PermissionError("Tool call changed the requested plan_id")
-        if expected_tool == "execute_plan_step" and int(arguments.get("step_index", 0)) != requested_plan["step_index"]:
-            raise PermissionError("Tool call changed the requested step_index")
-        return
-
-    requested_lines = requested_preview_lines(user_text)
-    if requested_lines is None:
-        return
-
-    if name != "preview_file_head":
-        raise PermissionError(
-            "First-N-lines requests must use preview_file_head. "
-            "Do not switch to another tool after preview_file_head fails."
-        )
-
-    try:
-        actual_lines = int(arguments.get("lines"))
-    except (TypeError, ValueError) as exc:
-        raise PermissionError("preview_file_head lines must match the user's requested line count") from exc
-
-    if actual_lines != requested_lines:
-        raise PermissionError(
-            "Tool call changed the requested line count "
-            f"from {requested_lines} to {actual_lines}. "
-            "Do not retry with modified parameters unless the user confirms them."
-        )
-
-
-def should_stop_after_tool_error(name: str, result: str, user_text: str) -> bool:
-    if requested_task_action(user_text) is not None:
-        return True
-    if requested_exact_tool(user_text) is not None:
-        return True
-    if requested_blocked_diagnosis(user_text) is not None:
-        return True
-    if requested_blocked_resolution(user_text) is not None:
-        return True
-    if requested_plan_execution(user_text) is not None:
-        return True
-    if requested_preview_lines(user_text) is None:
-        return False
-    if name != "preview_file_head":
-        return True
-    return "lines must be between 1 and 50" in result or "lines must be an integer" in result
-
-
-def final_tool_error_message(result: str) -> str:
-    return (
-        f"{result}\n\n"
-        "I will not retry with changed parameters or a different tool unless you confirm the new request."
-    )
-
-
-def should_stop_after_tool_success(name: str, user_text: str) -> bool:
-    if name in {"get_recent_tool_events", "run_task_cycle"}:
-        return True
-    exact_tool = requested_exact_tool(user_text)
-    if exact_tool is not None:
-        return name == exact_tool["tool"]
-    requested_diagnosis = requested_blocked_diagnosis(user_text)
-    if requested_diagnosis is not None:
-        return name == requested_diagnosis["tool"]
-    requested_resolution = requested_blocked_resolution(user_text)
-    if requested_resolution is not None:
-        return name == requested_resolution["tool"]
-    requested_plan = requested_plan_execution(user_text)
-    return requested_plan is not None and name == requested_plan["tool"]
-
-
-#初始化模型、messages、事件列表。
 class Agent:
     def __init__(self, model: ModelAdapter, max_steps: int = 8) -> None:
         self.model = model
@@ -446,63 +44,95 @@ class Agent:
         self.messages: list[dict[str, Any]] = []
         self.last_events: list[dict[str, Any]] = []
 
-#说明它是简化版调用，仅返回回答文本。
     def run_turn(self, text: str) -> str:
         return self.run_turn_with_trace(text)["answer"]
 
-#描述完整的对话循环流程、返回值结构和异常处理
     def run_turn_with_trace(self, text: str) -> dict[str, Any]:
         start_len = len(self.messages)
         self.last_events = []
-        self.messages.append(user_message(text))##调用message_builder中的user_message函数
+        self.messages.append(user_message(text))
 
         try:
-            for _ in range(self.max_steps):##循环max_steps次
-                system_prompt = build_system_prompt(self.messages)##调用context中的build_system_prompt函数
-                response = self.model.complete(self.messages, TOOL_SCHEMAS, system_prompt=system_prompt)##调用model_adapter中的complete函数
-                forced_tool_calls = forced_plan_tool_calls(text)
+            forced_tool_calls = forced_plan_tool_calls(text)
+            selected_names = {
+                capability.tool_name for capability in CAPABILITY_REGISTRY.select(text)
+            }
+            if forced_tool_calls is not None:
+                selected_names.update(str(call["name"]) for call in forced_tool_calls)
+            selected_capabilities = tuple(
+                capability
+                for capability in CAPABILITY_REGISTRY.all()
+                if capability.tool_name in selected_names
+            )
+            tool_schemas = CAPABILITY_REGISTRY.schemas_for_names(selected_names)
+            capability_prompt = CAPABILITY_REGISTRY.prompt_summary(selected_capabilities)
+
+            for _ in range(self.max_steps):
+                system_prompt = build_system_prompt(self.messages) + "\n\n" + capability_prompt
+                response = self.model.complete(self.messages, tool_schemas, system_prompt=system_prompt)
                 if forced_tool_calls is not None:
                     response = {
                         "type": "tool_calls",
                         "tool_calls": forced_tool_calls,
                         "reasoning_content": response.get("reasoning_content"),
                     }
-                
-                # 不需要工具，直接返回文本
+
                 if response["type"] == "message":
                     final_text = str(response.get("text", ""))
                     self.messages.append(assistant_message(final_text))
                     return {"answer": final_text, "events": self.last_events}
-                
-                # 需要工具调用
+
                 tool_calls = response.get("tool_calls", [])
                 self.messages.append(
                     assistant_tool_call_message(tool_calls, response.get("reasoning_content"))
                 )
-                
-                #遍历每个工具调用
+
                 for call in tool_calls:
                     name = call["name"]
                     arguments = call.get("arguments", {})
                     safe_print(f"> {name} {arguments}")
-                    event: dict[str, Any] = {"tool": name, "arguments": arguments}
+                    capability = None
+                    try:
+                        capability = CAPABILITY_REGISTRY.get(name)
+                    except KeyError:
+                        pass
+                    request = ExecutionRequest(
+                        capability=capability.name if capability is not None else f"unknown.{name}",
+                        execution_target=(
+                            capability.execution_target.value if capability is not None else "unknown"
+                        ),
+                        arguments=arguments,
+                        metadata={"tool_call_id": str(call.get("id", ""))},
+                    )
+                    event_details: dict[str, Any] = {
+                        "tool": name,
+                        "arguments": arguments,
+                    }
                     stop_after_error = False
                     try:
+                        if name not in selected_names:
+                            raise PermissionError(f"Capability was not selected for this turn: {name}")
                         check_user_requested_arguments(name, arguments, text)
-                        check_tool_call(name, arguments)#检查工具调用是否符合权限，调用permissions
-                        handler = TOOL_HANDLERS[name]#获取工具调用的处理函数，调用tools
-                        result = handler(**arguments)
-                        event["status"] = "ok"
-                    except Exception as exc:  # Keep tool failures inside the agent loop.
+                        check_motion_against_latest_perception(name, arguments, self.last_events)
+                        execution_event = DISPATCHER.dispatch(request)
+                        result = tool_result_text(execution_event.result)
+                        if execution_event.status is ExecutionStatus.FAILED:
+                            stop_after_error = should_stop_after_tool_error(name, result, text)
+                    except Exception as exc:
                         result = f"ERROR: {type(exc).__name__}: {exc}"
-                        event["status"] = "error"
+                        execution_event = request.event(
+                            ExecutionStatus.FAILED,
+                            result=result,
+                            error=ExecutionError.from_exception(exc),
+                        )
                         stop_after_error = should_stop_after_tool_error(name, result, text)
-                    event["result"] = result
+                    event = {**execution_event.to_dict(), **event_details}
                     self.last_events.append(event)
                     record_tool_event(event)
-                    self.messages.append(tool_result_message(call["id"], name, result))#把工具结果写回 messages，调用message_builder中的tool_result_message函数
+                    self.messages.append(tool_result_message(call["id"], name, result))
+
                     requested_task = requested_task_action(text)
-                    if event["status"] == "ok" and (
+                    if event["status"] == ExecutionStatus.SUCCEEDED.value and (
                         (requested_task is not None and name == requested_task["tool"])
                         or name == "create_task_plan"
                     ):
@@ -522,15 +152,13 @@ class Agent:
                         answer = final_tool_error_message(result)
                         self.messages.append(assistant_message(answer))
                         return {"answer": answer, "events": self.last_events}
-                    if event["status"] == "ok" and should_stop_after_tool_success(name, text):
+                    if event["status"] == ExecutionStatus.SUCCEEDED.value and should_stop_after_tool_success(name, text):
                         self.messages.append(assistant_message(result))
                         return {"answer": result, "events": self.last_events}
-            
-            #超过 max_steps
+
             answer = "Stopped because max_steps was reached."
             self.messages.append(assistant_message(answer))
             return {"answer": answer, "events": self.last_events}
-        #未处理异常时回滚
         except Exception:
             self.messages = self.messages[:start_len]
             self.last_events = []

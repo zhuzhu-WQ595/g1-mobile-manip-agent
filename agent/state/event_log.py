@@ -36,7 +36,15 @@ def read_recent_events(limit: int = 20) -> str:
         try:
             events.append(json.loads(line))
         except json.JSONDecodeError:
-            events.append({"time": "(invalid)", "tool": "(invalid)", "status": "error", "arguments": {}, "result": line})
+            events.append(
+                {
+                    "time": "(invalid)",
+                    "tool": "(invalid)",
+                    "status": "failed",
+                    "arguments": {},
+                    "result": line,
+                }
+            )
 
     rows = [
         "Recent tool events:",

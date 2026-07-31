@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from .robot_adapter import get_robot_adapter
-from .robot_protocol import RobotCommand, result_text
-from .robot_safety import validate_command, validate_plan
+from contracts.robot import RobotCommand, RobotResult, result_text
+
+from .client import get_robot_adapter
+from .policy import validate_plan
 
 
 def _schema(name: str, description: str, properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
@@ -19,16 +20,25 @@ def _schema(name: str, description: str, properties: dict[str, Any], required: l
     }
 
 
-def _execute(action: str, params: dict[str, Any] | None = None) -> str:
+def _execute_result(action: str, params: dict[str, Any] | None = None) -> RobotResult:
     adapter = get_robot_adapter()
     command = RobotCommand(action, params or {})
-    state = adapter.get_state()
-    validate_command(command, state)
-    return result_text(adapter.execute(command))
+    return adapter.execute(command)
+
+
+def _execute(action: str, params: dict[str, Any] | None = None) -> str:
+    return _serialize_result(_execute_result(action, params), f"robot.robot_{action}")
+
+
+def _serialize_result(result: RobotResult, capability: str) -> str:
+    payload = result.to_dict()
+    payload["execution_event"] = result.to_execution_event(capability).to_dict()
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def robot_get_status() -> str:
-    return _execute("get_status")
+    state = get_robot_adapter().get_state()
+    return _serialize_result(RobotResult(True, "status read", state), "robot.robot_get_status")
 
 
 def robot_move(distance: float, direction: str = "forward", speed: float = 0.3) -> str:
@@ -43,8 +53,25 @@ def robot_stop() -> str:
     return _execute("stop")
 
 
-def robot_set_wheel_speed(left: float, right: float) -> str:
-    return _execute("set_wheel_speed", {"left": left, "right": right})
+def robot_get_action_status(action_id: str) -> str:
+    return _serialize_result(
+        get_robot_adapter().get_action(action_id),
+        "robot.robot_get_action_status",
+    )
+
+
+def robot_cancel_action(action_id: str) -> str:
+    return _serialize_result(
+        get_robot_adapter().cancel_action(action_id),
+        "robot.robot_cancel_action",
+    )
+
+
+def robot_emergency_stop() -> str:
+    return _serialize_result(
+        get_robot_adapter().emergency_stop(),
+        "robot.robot_emergency_stop",
+    )
 
 
 def robot_speak(text: str) -> str:
@@ -64,7 +91,11 @@ def robot_execute_plan(steps: list[dict[str, Any]] | str) -> str:
         action = str(step.get("action", ""))
         params = dict(step.get("params", {}))
         try:
-            outputs.append(f"step {index}: " + _execute(action, params))
+            result = _execute_result(action, params)
+            outputs.append(f"step {index}: " + result_text(result))
+            if not result.ok:
+                outputs.append("plan stopped")
+                break
         except Exception as exc:
             outputs.append(f"step {index}: error: {type(exc).__name__}: {exc}")
             outputs.append("plan stopped")
@@ -86,7 +117,7 @@ ROBOT_TOOL_SCHEMAS: list[dict[str, Any]] = [
     ),
     _schema(
         "robot_rotate",
-        "Rotate the robot in place. Positive angle turns right, negative angle turns left.",
+        "Rotate in place. Positive angles turn left (counterclockwise); negative angles turn right.",
         {
             "angle": {"type": "number", "description": "Degrees. Max single rotation is 90 degrees."},
             "speed": {"type": "number", "description": "Normalized speed. Recommended 0.1-0.3; max 0.5."},
@@ -95,11 +126,18 @@ ROBOT_TOOL_SCHEMAS: list[dict[str, Any]] = [
     ),
     _schema("robot_stop", "Stop the robot immediately.", {}, []),
     _schema(
-        "robot_set_wheel_speed",
-        "Set differential-drive wheel speeds directly. Use only for low-level control.",
-        {"left": {"type": "number"}, "right": {"type": "number"}},
-        ["left", "right"],
+        "robot_get_action_status",
+        "Read the current status and feedback for a previously submitted robot action.",
+        {"action_id": {"type": "string"}},
+        ["action_id"],
     ),
+    _schema(
+        "robot_cancel_action",
+        "Request cancellation of a running robot action.",
+        {"action_id": {"type": "string"}},
+        ["action_id"],
+    ),
+    _schema("robot_emergency_stop", "Latch the robot emergency stop immediately.", {}, []),
     _schema("robot_speak", "Speak text through the robot speaker or simulator.", {"text": {"type": "string"}}, ["text"]),
     _schema("robot_capture_image", "Capture a camera frame or simulated frame reference.", {}, []),
     _schema(
@@ -125,7 +163,9 @@ ROBOT_TOOL_HANDLERS: dict[str, Any] = {
     "robot_move": robot_move,
     "robot_rotate": robot_rotate,
     "robot_stop": robot_stop,
-    "robot_set_wheel_speed": robot_set_wheel_speed,
+    "robot_get_action_status": robot_get_action_status,
+    "robot_cancel_action": robot_cancel_action,
+    "robot_emergency_stop": robot_emergency_stop,
     "robot_speak": robot_speak,
     "robot_capture_image": robot_capture_image,
     "robot_execute_plan": robot_execute_plan,

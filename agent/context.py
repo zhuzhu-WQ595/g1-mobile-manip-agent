@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .prompt import SYSTEM_PROMPT
+from .prompts import SYSTEM_PROMPT
 from .state.memory_store import load_memory
 from .state.skill_store import list_skills
 from .state.task_store import task_summary

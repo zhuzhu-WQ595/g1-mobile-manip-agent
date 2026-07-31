@@ -115,8 +115,9 @@ function renderTrace(events = []) {
     name.textContent = event.tool || "unknown_tool";
 
     const badge = document.createElement("span");
-    badge.className = `badge ${event.status === "error" ? "error" : ""}`.trim();
-    badge.textContent = event.status || "ok";
+    const failedStatuses = new Set(["failed", "cancelled", "timed_out", "error"]);
+    badge.className = `badge ${failedStatuses.has(event.status) ? "error" : ""}`.trim();
+    badge.textContent = event.status || "unknown";
 
     title.append(name, badge);
     item.append(

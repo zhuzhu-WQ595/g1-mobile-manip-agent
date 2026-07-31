@@ -6,7 +6,7 @@ import urllib.request
 from typing import Any
 
 from ..message_builder import parts_to_text
-from ..prompt import SYSTEM_PROMPT
+from ..prompts import SYSTEM_PROMPT
 from .env import env_first
 
 

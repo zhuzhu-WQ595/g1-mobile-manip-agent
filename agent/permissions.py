@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shlex
 from pathlib import Path
 from typing import Any
@@ -62,18 +63,25 @@ SAFE_STATE_TOOLS = {
     "diagnose_blocked_step",
 }
 
-# Robot tools – all allowed (hardware access is behind the controller abstraction)
-ROBOT_TOOLS = {
-    "robot_move",
-    "robot_rotate",
+# Stop, status, cancellation, and sensing stay available without motion authorization.
+SAFE_ROBOT_TOOLS = {
     "robot_stop",
+    "robot_emergency_stop",
     "robot_get_status",
-    "robot_set_wheel_speed",
-    "robot_set_speed",
+    "robot_get_action_status",
+    "robot_cancel_action",
     "robot_speak",
     "robot_capture_image",
+}
+
+MOTION_ROBOT_TOOLS = {
+    "robot_move",
+    "robot_rotate",
     "robot_execute_plan",
 }
+
+REMOTE_SERVICE_TOOLS = {"invoke_remote_service"}
+PERCEPTION_TOOLS = {"perception_observe", "perception_check_path"}
 
 
 def resolve_workspace_path(path: str) -> Path:
@@ -100,8 +108,42 @@ def check_tool_call(name: str, arguments: dict[str, Any]) -> None:
     if name in SAFE_STATE_TOOLS:
         return
 
-    if name in ROBOT_TOOLS:
-        return  # robot tools pass through robot_safety before adapter execution
+    if name in SAFE_ROBOT_TOOLS:
+        return
+
+    if name in MOTION_ROBOT_TOOLS:
+        mode = os.environ.get("ROBOT_MODE", "simulated").strip().lower()
+        motion_enabled = os.environ.get("ROBOT_ALLOW_MOTION", "").strip().lower() in {"1", "true", "yes"}
+        if mode == "simulated" or motion_enabled:
+            return
+        raise PermissionError(
+            "Real robot motion is disabled. An operator must set ROBOT_ALLOW_MOTION=1 after the gateway is ready."
+        )
+
+    if name in REMOTE_SERVICE_TOOLS:
+        service = str(arguments.get("service", "")).strip()
+        operation = str(arguments.get("operation", "")).strip()
+        payload = arguments.get("payload", {})
+        if not service or "://" in service:
+            raise PermissionError("Remote calls require a configured symbolic service name")
+        if not operation:
+            raise PermissionError("Remote calls require an operation name")
+        if not isinstance(payload, dict):
+            raise PermissionError("Remote service payload must be an object")
+        return
+
+    if name in PERCEPTION_TOOLS:
+        if name == "perception_check_path":
+            direction = str(arguments.get("direction", ""))
+            distance = float(arguments.get("distance", 0.0))
+            if direction not in {"forward", "backward"}:
+                raise PermissionError("Perception path direction must be forward or backward")
+            if distance <= 0 or distance > 5.0:
+                raise PermissionError("Perception path distance must be greater than 0 and at most 5 meters")
+        return
+
+    if name in {"robot_set_wheel_speed", "robot_set_speed"}:
+        raise PermissionError("Direct low-level robot control is not available to the Agent")
 
     if name == "run_command":
         command = split_command(str(arguments.get("command", "")))

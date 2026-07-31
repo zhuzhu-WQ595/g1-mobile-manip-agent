@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .robot_protocol import RobotCommand, RobotState
+from contracts.robot import RobotCommand, RobotState
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,13 @@ def validate_command(command: RobotCommand, state: RobotState, limits: SafetyLim
     if action in {"get_status", "stop", "capture_image", "speak"}:
         return
 
+    if state.emergency_stopped is None:
+        raise ValueError("Emergency stop state is unavailable; motion is disabled")
+    if state.emergency_stopped:
+        raise ValueError("Emergency stop is latched; motion is disabled")
+
+    if state.battery_percent is None:
+        raise ValueError("Battery state is unavailable; motion is disabled")
     if state.battery_percent < limits.min_battery_percent:
         raise ValueError("Battery too low for motion; stop or recharge first")
 
@@ -50,8 +57,11 @@ def validate_command(command: RobotCommand, state: RobotState, limits: SafetyLim
             raise ValueError(f"single move exceeds safety limit: {distance}m > {limits.max_single_move_m}m")
         if speed > limits.max_speed:
             raise ValueError(f"speed exceeds safety limit: {speed} > {limits.max_speed}")
-        if direction == "forward" and state.front_obstacle_m < limits.min_front_obstacle_m:
-            raise ValueError("front obstacle is too close for forward movement")
+        if direction == "forward":
+            if state.front_obstacle_m is None:
+                raise ValueError("Front obstacle state is unavailable; forward motion is disabled")
+            if state.front_obstacle_m < limits.min_front_obstacle_m:
+                raise ValueError("front obstacle is too close for forward movement")
         return
 
     if action == "rotate":

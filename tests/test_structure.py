@@ -1,25 +1,83 @@
 import json
+from pathlib import Path
 
 import pytest
 
-from agent.model_adapter import DemoModel, load_model_from_env
+from agent.models import DemoModel, load_model_from_env
 from agent.permissions import check_tool_call
-from agent.prompt import SYSTEM_PROMPT
-from agent.tools import TOOL_HANDLERS, TOOL_SCHEMAS
+from agent.prompts import SYSTEM_PROMPT
+from agent.toolkit import TOOL_HANDLERS, TOOL_SCHEMAS
 from agent.message_builder import user_message
 
 
-def test_compat_imports_work():
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_agent_root_has_no_legacy_facades():
+    legacy_facades = {
+        "approvals.py",
+        "evaluation.py",
+        "goal_runner.py",
+        "hooks.py",
+        "memory.py",
+        "model_adapter.py",
+        "plans.py",
+        "prompt.py",
+        "skills.py",
+        "tasks.py",
+        "tools.py",
+    }
+
+    assert not legacy_facades.intersection(path.name for path in (ROOT / "agent").glob("*.py"))
+
+
+def test_robot_modules_have_single_canonical_home():
+    agent_robot_files = {path.name for path in (ROOT / "agent" / "robot").glob("*.py")}
+
+    assert agent_robot_files == {"__init__.py", "client.py", "policy.py", "tools.py"}
+    assert (ROOT / "contracts" / "robot.py").is_file()
+    assert (ROOT / "robot_runtime" / "gateway_server.py").is_file()
+    assert (ROOT / "robot_runtime" / "adapter.py").is_file()
+    assert (ROOT / "robot_runtime" / "safety.py").is_file()
+    assert (ROOT / "robot_runtime" / "simulator.py").is_file()
+
+
+def test_robot_runtime_does_not_depend_on_agent_package():
+    for path in (ROOT / "robot_runtime").glob("*.py"):
+        source = path.read_text(encoding="utf-8")
+        assert "from agent" not in source
+        assert "import agent" not in source
+
+
+def test_canonical_package_imports_work():
+    from agent.execution import GoalRunner
+    from agent.routing import requested_task_action
+    from contracts.robot import RobotCommand
+    from evaluations.runner import EvaluationCase
+    from robot_runtime.adapter import RobotRuntimeAdapter
+    from robot_runtime.gateway_server import RobotGateway
+
     assert DemoModel is not None
     assert callable(load_model_from_env)
     assert isinstance(SYSTEM_PROMPT, str)
+    assert GoalRunner is not None
+    assert callable(requested_task_action)
+    assert RobotCommand is not None
+    assert EvaluationCase is not None
+    assert RobotGateway is not None
+    assert RobotRuntimeAdapter is not None
 
 
 def test_tool_registry_has_matching_handlers_and_schemas():
     schema_names = {item["function"]["name"] for item in TOOL_SCHEMAS}
     handler_names = set(TOOL_HANDLERS)
 
-    assert schema_names == handler_names
+    assert handler_names <= schema_names
+    assert schema_names - handler_names == {
+        "invoke_remote_service",
+        "perception_observe",
+        "perception_check_path",
+    }
     assert "read_file" in handler_names
     assert "count_files_by_extension" in handler_names
     assert "create_plan" in handler_names
@@ -40,6 +98,7 @@ def test_tool_registry_has_matching_handlers_and_schemas():
     assert "validate_task_plan" in handler_names
     assert "run_task_cycle" in handler_names
     assert "edit_file" not in handler_names
+    assert "invoke_remote_service" not in handler_names
 
 
 def test_demo_model_routes_to_tool_call():
@@ -244,7 +303,7 @@ def test_agent_returns_recent_tool_events_table_directly(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
 
     from agent.agent_loop import Agent
-    from agent.model_adapter import DemoModel
+    from agent.models import DemoModel
     from agent.state import event_log
 
     state_dir = tmp_path / ".agent_state"
@@ -454,22 +513,10 @@ def test_system_prompt_contains_key_sections():
     assert "Current capabilities:" in SYSTEM_PROMPT
     assert "Robot-control rules:" in SYSTEM_PROMPT
     assert "General rules:" in SYSTEM_PROMPT
-    assert "create_plan" in SYSTEM_PROMPT
-    assert "get_recent_tool_events" in SYSTEM_PROMPT
-    assert "request_edit_file" in SYSTEM_PROMPT
-    assert "cancel_pending_action" in SYSTEM_PROMPT
-    assert "list_approval_history" in SYSTEM_PROMPT
-    assert "get_approval_details" in SYSTEM_PROMPT
-    assert "get_task_details" in SYSTEM_PROMPT
-    assert "start_task" in SYSTEM_PROMPT
-    assert "complete_task" in SYSTEM_PROMPT
-    assert "fail_task" in SYSTEM_PROMPT
-    assert "retry_task" in SYSTEM_PROMPT
-    assert "cancel_task" in SYSTEM_PROMPT
+    assert "capability registry" in SYSTEM_PROMPT
+    assert "authoritative capability set" in SYSTEM_PROMPT
+    assert "Do not call tools that are not listed" in SYSTEM_PROMPT
     assert "current, latest, last, recent" in SYSTEM_PROMPT
-    assert "create_task_plan" in SYSTEM_PROMPT
-    assert "get_task_plan" in SYSTEM_PROMPT
-    assert "validate_task_plan" in SYSTEM_PROMPT
     assert "run_task_cycle" in SYSTEM_PROMPT
     assert "project-structure inspection" in SYSTEM_PROMPT
     assert "current plan" in SYSTEM_PROMPT

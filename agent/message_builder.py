@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 ContentPart = dict[str, Any]
@@ -43,6 +44,12 @@ def tool_result_message(tool_call_id: str, name: str, result: str) -> Message:
         "name": name,
         "content": [text_part(result)],
     }
+
+
+def tool_result_text(result: Any) -> str:
+    if isinstance(result, str):
+        return result
+    return json.dumps(result, ensure_ascii=False, sort_keys=True)
 
 
 def parts_to_text(parts: list[ContentPart]) -> str:

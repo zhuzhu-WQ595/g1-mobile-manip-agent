@@ -12,7 +12,7 @@ from typing import Any
 from urllib.parse import unquote
 
 from .agent_loop import Agent
-from .model_adapter import load_model_from_env
+from .models import load_model_from_env
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB_ROOT = ROOT / "web"

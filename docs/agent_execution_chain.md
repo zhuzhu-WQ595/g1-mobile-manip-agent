@@ -36,9 +36,13 @@ model.complete(messages, TOOL_SCHEMAS, system_prompt)
         ↓
       对每个 tool_call 执行：
         ↓
-      check_tool_call(name, arguments)
+      创建 ExecutionRequest
         ↓
-      TOOL_HANDLERS[name](**arguments)
+      Dispatcher 校验 capability 与 execution_target
+        ↓
+      Dispatcher 权限检查并路由到 local_toolkit / agent_state / robot_gateway / remote_service
+        ↓
+      返回 ExecutionEvent
         ↓
       record_tool_event(event)
         ↓
@@ -66,9 +70,18 @@ flowchart TD
     E --> F{模型是否请求工具?}
     F -- 否 --> G[写入 assistant_message 并输出回答]
     F -- 是 --> H[写入 assistant tool_call 消息]
-    H --> I[权限检查 check_tool_call]
-    I --> J[执行 TOOL_HANDLERS]
-    J --> K[记录 hook 事件]
+    H --> I[创建 ExecutionRequest]
+    I --> J[Dispatcher 校验目标并检查权限]
+    J --> M{execution_target}
+    M -->|local_toolkit| N[本地工具]
+    M -->|agent_state| O[状态服务]
+    M -->|robot_gateway| P[机器人网关工具]
+    M -->|remote_service| R[外部 HTTP 服务]
+    N --> Q[生成 ExecutionEvent]
+    O --> Q
+    P --> Q
+    R --> Q
+    Q --> K[记录 hook 事件]
     K --> L[写入 tool_result_message]
     L --> E
 ```
@@ -80,22 +93,37 @@ flowchart LR
     UI[CLI / Web UI] --> LOOP[agent_loop.py]
     LOOP --> MSG[message_builder.py]
     LOOP --> CTX[context.py]
-    LOOP --> MODEL[model_adapter.py]
-    LOOP --> PERM[permissions.py]
-    LOOP --> TOOLS[tools.py]
-    LOOP --> HOOKS[hooks.py]
+    LOOP --> MODEL[agent/models/]
+    LOOP --> CAPS[agent/capabilities/registry.py]
+    CAPS --> CAPCONTRACT[contracts/capability.py]
+    CAPS --> REQUEST[contracts/execution.py: ExecutionRequest]
+    REQUEST --> DISPATCH[agent/scheduling/dispatcher.py]
+    DISPATCH --> PERM[permissions.py]
+    DISPATCH --> TOOLS[agent/toolkit/]
+    DISPATCH --> REMOTE[agent/scheduling/remote.py]
+    REMOTE --> SERVICES[services/registry.py]
+    SERVICES --> EXTERNAL[外部软件 / 服务]
+    EXTERNAL --> OBS[contracts/observation.py]
+    OBS --> POLICY[agent/robot/policy.py]
+    POLICY -->|path_clear=true| ROBOT
+    POLICY -->|blocked / failed| EVENT
+    TOOLS --> EVENT[contracts/execution.py: ExecutionEvent]
+    EVENT --> LOOP
+    LOOP --> HOOKS[agent/state/event_log.py]
 
-    CTX --> PROMPT[prompt.py]
-    CTX --> MEM[memory.py]
-    CTX --> TASKS[tasks.py]
-    CTX --> SKILLS[skills.py]
+    CTX --> PROMPT[agent/prompts/]
+    CTX --> MEM[agent/state/memory_store.py]
+    CTX --> TASKS[agent/state/task_store.py]
+    CTX --> SKILLS[agent/state/skill_store.py]
 
     TOOLS --> FILES[文件系统工具]
     TOOLS --> STATE[Memory / Tasks / Skills]
-    TOOLS --> ROBOT[robot tools]
-    ROBOT --> SAFETY[robot_safety.py]
-    SAFETY --> ADAPTER[robot_adapter.py]
-    ADAPTER --> SIM[robot_simulator.py / 真实硬件]
+    TOOLS --> ROBOT[agent/robot/tools.py]
+    ROBOT --> CLIENT[agent/robot/client.py]
+    CLIENT --> ROBOTCONTRACT[contracts/robot.py]
+    ROBOTCONTRACT --> GATEWAY[robot_runtime/gateway_server.py]
+    GATEWAY --> SAFETY[robot_runtime/safety.py]
+    SAFETY --> TARGET[robot_runtime/simulator.py / 真实硬件驱动]
 ```
 
 ### 3.3 机器人方向迁移关系
@@ -104,9 +132,11 @@ flowchart LR
 flowchart TD
     LLM[大模型] --> PLAN[任务理解与动作规划]
     PLAN --> RTOOLS[机器人高层工具]
-    RTOOLS --> SAFE[安全检查: 速度 / 距离 / 障碍物 / 急停]
-    SAFE --> ADAPT[通信适配器]
-    ADAPT --> TARGET[模拟器或真实机器人]
+    RTOOLS --> CLIENT[Agent 侧 HTTP / Socket 客户端]
+    CLIENT --> CONTRACT[公共命令与结果协议]
+    CONTRACT --> GATEWAY[机器人运行时网关]
+    GATEWAY --> SAFE[执行端安全检查: 速度 / 距离 / 障碍物 / 急停]
+    SAFE --> TARGET[模拟器或真实机器人驱动]
 ```
 
 ## 4. 核心文件职责
@@ -114,17 +144,17 @@ flowchart TD
 | 文件 | 职责 | 对应学习重点 |
 |---|---|---|
 | `agent/agent_loop.py` | 主循环，处理模型调用、工具调用、结果回填 | s01-s02 |
-| `agent/tools.py` | 定义 `TOOL_SCHEMAS` 和 `TOOL_HANDLERS` | s02 |
+| `agent/toolkit/registry.py` | 定义 `TOOL_SCHEMAS` 和 `TOOL_HANDLERS` | s02 |
 | `agent/permissions.py` | 工具执行前检查路径、命令和工具权限 | s03 |
-| `agent/hooks.py` | 记录工具事件 | s04 |
+| `agent/state/event_log.py` | 记录工具事件 | s04 |
 | `agent/context.py` | 动态组装 system prompt | s10 |
-| `agent/prompt.py` | 基础 system prompt | s10 |
+| `agent/prompts/` | 组装 system prompt | s10 |
 | `agent/message_builder.py` | 构造 user、assistant、tool_result 消息 | s01-s02 |
-| `agent/model_adapter.py` | 适配 demo model 和 OpenAI-compatible 模型 | s01-s02 |
-| `agent/memory.py` | 保存和读取长期记忆 | s09 |
-| `agent/tasks.py` | 本地任务列表 | s12 |
-| `agent/skills.py` | 内置技能说明 | s07 |
-| `agent/robot/*` | 机器人协议、安全、适配器和模拟器 | 机器人扩展 |
+| `agent/models/` | 适配 demo model 和 OpenAI-compatible 模型 | s01-s02 |
+| `agent/state/memory_store.py` | 保存和读取长期记忆 | s09 |
+| `agent/state/task_store.py` | 本地任务列表 | s12 |
+| `agent/state/skill_store.py` | 内置技能说明 | s07 |
+| `agent/robot/` | Agent 侧机器人客户端和高层工具 | 机器人扩展 |
 
 ## 5. 主链路代码对应关系
 
@@ -158,7 +188,7 @@ build_system_prompt(messages)
 
 ### 5.3 工具描述传给模型
 
-入口在 `agent/tools.py`：
+入口在 `agent/toolkit/registry.py`：
 
 ```text
 TOOL_SCHEMAS
@@ -168,7 +198,7 @@ TOOL_SCHEMAS
 
 ### 5.4 工具名映射到真实函数
 
-入口在 `agent/tools.py`：
+入口在 `agent/toolkit/registry.py`：
 
 ```text
 TOOL_HANDLERS

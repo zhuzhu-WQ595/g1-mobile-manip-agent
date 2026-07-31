@@ -7,6 +7,10 @@
 ```text
 self-test/
   agent/          Agent 后端核心代码
+  contracts/      跨进程公共数据协议
+  robot_runtime/  机器人边缘执行、模拟和安全
+  services/       远程服务注册与通信边界验证
+  evaluations/    开发评测，不参与线上运行
   web/            Web 前端页面
   docs/           学习文档和结构说明
   notes/          实验笔记和临时记录
@@ -20,32 +24,134 @@ agent/
   main.py             CLI 启动入口
   web_server.py       Web 服务入口
   agent_loop.py       Agent 主循环
+  capabilities/       能力目录、元数据和目标匹配
+  execution/          目标执行、完成验证和报告
+  routing/            显式指令解析和路由约束
+  scheduling/         执行目标校验与统一分发
   message_builder.py  消息格式构造
   context.py          动态 system prompt 组装
-  prompt.py           Prompt 系统兼容入口
   prompts/            Prompt 规则模块
   permissions.py      工具调用权限检查
 
-  tools.py            工具系统兼容入口
   toolkit/            工具模块
 
-  model_adapter.py    模型系统兼容入口
   models/             模型适配模块
 
-  plans.py            计划系统兼容入口
   planning/           计划模块
 
-  memory.py           状态系统兼容入口
-  tasks.py            状态系统兼容入口
-  approvals.py        状态系统兼容入口
-  hooks.py            状态系统兼容入口
-  skills.py           状态系统兼容入口
   state/              状态与知识模块
 
-  robot/              机器人控制模块
+  robot/              Agent 侧机器人客户端和工具
 ```
 
 ## 核心边界
+
+### 能力系统
+
+位置：
+
+```text
+contracts/capability.py
+agent/capabilities/registry.py
+```
+
+每个工具必须登记为一个 Capability，并统一描述：
+
+```text
+name
+domain
+execution_target
+risk_level
+tool_name
+input_schema
+tags
+```
+
+普通 Agent 根据当前目标选择相关能力并缩小工具 Schema；无法识别的开放目标回退到完整能力目录。确定性路由要求的工具会自动并入本轮能力集合，任何未被选择的工具调用都会在执行前被拒绝。
+
+### 统一执行协议
+
+位置：`contracts/execution.py`
+
+公共对象：
+
+```text
+ExecutionRequest   一次能力执行请求
+ExecutionEvent     执行过程或终态反馈
+ExecutionResult    终态结果摘要
+ExecutionError     结构化错误
+ExecutionStatus    统一生命周期状态
+```
+
+统一状态：
+
+```text
+created
+accepted
+running
+waiting_feedback
+succeeded
+failed
+cancelled
+timed_out
+```
+
+普通工具和 GoalRunner 会为每次调用创建 `ExecutionRequest`，并将结果写成 `ExecutionEvent`。事件保留 `tool`、`arguments` 等调试字段，同时增加执行 ID、Capability、执行目标、结构化错误和观察数据。机器人 `ActionStatus` 会映射到同一状态集合，但目标运行整体的 `completed/blocked` 仍属于 GoalRunner 结果，不与单次执行状态混用。
+
+### 统一执行分发
+
+位置：`agent/scheduling/dispatcher.py`
+
+Dispatcher 是运行时唯一的工具执行入口，职责是：
+
+- 根据 Capability 校验 `execution_target`
+- 将请求分发到 `local_toolkit`、`agent_state`、`robot_gateway` 或 `remote_service`
+- 在 Handler 执行前统一调用 `check_tool_call()`
+- 将成功或异常统一转换为 `ExecutionEvent`
+- 通过 `remote_service` 通信适配器连接白名单中的外部服务
+
+本地、状态和机器人目标复用已有 Python Handler；`remote_service` 由 `agent/scheduling/remote.py` 通过 HTTP 发送统一执行协议。服务地址只允许从 `REMOTE_SERVICES` 白名单读取，模型不能提供 URL。后续接入外部软件时，只需要实现 `/executions` 协议；接入真实机器人时仍经过专用机器人网关，不让通用远程调用绕过机器人安全层。
+
+远程服务通信链：
+
+```text
+LLM 选择 invoke_remote_service
+  -> ExecutionRequest
+  -> Dispatcher(remote_service)
+  -> ServiceRegistry 解析符号服务名
+  -> POST /executions
+  -> 外部服务返回 ExecutionEvent
+  -> Dispatcher 校验 execution_id / capability / target
+  -> 结果回填给 LLM
+```
+
+### 感知反馈边界
+
+位置：
+
+```text
+contracts/observation.py       结构化 Observation 协议
+services/perception.py         可切换场景的独立模拟感知服务
+agent/toolkit/service_tools.py perception_observe / perception_check_path
+agent/robot/policy.py          根据最新感知结果约束机器人移动
+```
+
+感知能力使用 `remote_service` 通道，但模型不需要填写服务名和 HTTP 操作。调度层会将类型化能力固定映射到 `perception` 服务。`Observation` 统一保存来源、对象、障碍物、路径是否畅通、置信度和图像引用。
+
+移动约束：
+
+```text
+最新感知 path_clear=true  -> 允许继续进入机器人权限和安全检查
+最新感知 path_clear=false -> Agent 侧拒绝移动
+最新感知失败              -> Agent 侧拒绝移动
+没有结构化 observation     -> Agent 侧拒绝移动
+方向或距离超出路径检查范围 -> Agent 侧拒绝移动
+已经执行过一次移动          -> 必须重新感知
+```
+
+该约束不能替代 `robot_runtime/safety.py`。Agent 侧负责根据语义观察做决策，机器人网关仍负责速度、距离、超时、急停等执行安全。
+
+本地 `DemoModel` 对“仅在路径安全时移动”的目标实现了一条确定性多轮路径，用于无 API 验证：先调用 `perception_check_path`，再读取 `Observation`；畅通时调用一次参数匹配的 `robot_move`，阻塞时停止。真实模型不依赖这条规则，而是根据相同工具 Schema、Prompt 和反馈自行决策。`RobotFeedbackVerifier` 会把“条件目标中因障碍而正确不移动”认定为有效完成。
 
 ### 主循环
 
@@ -59,8 +165,7 @@ agent/agent_loop.py
 
 - 接收用户输入
 - 调用模型
-- 检查工具权限
-- 执行工具
+- 创建统一执行请求并交给 Dispatcher
 - 把工具结果写回消息历史
 - 生成最终回复
 
@@ -68,12 +173,7 @@ agent/agent_loop.py
 
 ### 工具系统
 
-位置：
-
-```text
-agent/tools.py
-agent/toolkit/
-```
+位置：`agent/toolkit/`
 
 当前分类：
 
@@ -96,18 +196,13 @@ agent/toolkit/
 3. 新增 handler 函数
 4. 注册到该模块的 *_TOOL_HANDLERS
 5. 如需要，在 permissions.py 中加入权限规则
-6. 如需要，在 prompt.py 或 demo.py 中补充使用说明或测试路由
+6. 如需要，在 prompts/ 或 models/demo.py 中补充使用说明或测试路由
 7. 运行最小验证
 ```
 
 ### 模型系统
 
-位置：
-
-```text
-agent/model_adapter.py
-agent/models/
-```
+位置：`agent/models/`
 
 当前分类：
 
@@ -127,17 +222,12 @@ agent/models/
 1. 在 agent/models/ 新增模型适配文件
 2. 实现 complete(messages, tools, system_prompt)
 3. 在 loader.py 中加入 provider 路由
-4. 如需兼容旧导入，在 models/__init__.py 或 model_adapter.py 中导出
+4. 在 models/__init__.py 中导出公共模型接口
 ```
 
 ### Prompt 系统
 
-位置：
-
-```text
-agent/prompt.py
-agent/prompts/
-```
+位置：`agent/prompts/`
 
 当前分类：
 
@@ -152,8 +242,6 @@ agent/prompts/
   style.py         输出风格规则
   builder.py       汇总生成 SYSTEM_PROMPT
 ```
-
-顶层的 `prompt.py` 是兼容入口。新 prompt 规则优先放到 `agent/prompts/` 中。
 
 扩展 Prompt 时，优先判断规则属于哪一类：
 
@@ -170,12 +258,7 @@ agent/prompts/
 
 ### 计划系统
 
-位置：
-
-```text
-agent/plans.py
-agent/planning/
-```
+位置：`agent/planning/`
 
 当前分类：
 
@@ -202,16 +285,7 @@ agent/planning/
 
 ### 状态与知识系统
 
-位置：
-
-```text
-agent/memory.py
-agent/tasks.py
-agent/approvals.py
-agent/hooks.py
-agent/skills.py
-agent/state/
-```
+位置：`agent/state/`
 
 当前分类：
 
@@ -223,8 +297,6 @@ agent/state/
   event_log.py         工具事件日志，写入 .agent_state/tool_events.jsonl
   skill_store.py       内置技能说明
 ```
-
-顶层的 `memory.py`、`tasks.py`、`approvals.py`、`hooks.py`、`skills.py` 是兼容入口。新逻辑优先放到 `agent/state/` 中。
 
 状态与工具的关系：
 
@@ -248,30 +320,50 @@ agent/permissions.py
 - 限制路径工具只能访问工作区内部
 - 限制命令工具只能执行白名单命令
 - 放行安全状态工具
-- 放行机器人工具，但机器人动作仍需要经过 robot_safety
+- 放行机器人工具，但机器人动作仍需要经过 `robot_runtime/safety.py`
 
 原则：任何能访问文件、执行命令、调用外部能力或控制硬件的工具，都要先经过权限设计。
 
 ### 机器人系统
 
-位置：
-
-```text
-agent/robot/
-```
-
 当前分类：
 
 ```text
 agent/robot/
-  robot_protocol.py   命令、状态、结果数据结构
-  robot_safety.py     运动限制和计划校验
-  robot_simulator.py  本地模拟器
-  robot_adapter.py    HTTP、Socket 等外部适配器
-  robot_tools.py      暴露给模型的机器人工具
+  client.py           HTTP、Socket 网关客户端
+  tools.py            暴露给模型的高层机器人工具
+  policy.py           Agent 侧计划结构校验
+
+contracts/
+  robot.py            命令、状态、结果公共数据协议
+
+robot_runtime/
+  adapter.py          模拟器、仿真环境或硬件驱动的稳定适配协议与工厂
+  safety.py           执行端运动安全强制检查
+  simulator.py        本地模拟执行器
+  gateway_server.py   异步 HTTP 机器人网关
 ```
 
-原则：模型不能直接控制底层硬件。真实硬件必须放在 adapter 后面，并经过 safety 检查。
+原则：模型不能直接控制底层硬件。Agent 只调用客户端；真实驱动放在 `robot_runtime/`，并在执行端再次进行安全检查。
+
+依赖方向固定为：
+
+```text
+contracts
+  ↑              ↑
+agent/robot   robot_runtime
+  ↑
+Agent / Web / evaluations
+```
+
+- `contracts/` 不依赖 Agent 或机器人运行时。
+- `agent/robot/` 只保留客户端、高层工具和决策侧策略，不实现网关、模拟器或硬件安全。
+- `robot_runtime/` 不依赖模型、Prompt、计划或 Agent 状态。
+- `gateway_server.py` 只依赖 `RobotRuntimeAdapter`，不直接依赖具体模拟器或硬件 SDK。
+- 长动作由适配器的 `execute_motion` 实际执行，并通过回调返回进度；网关负责线程、取消、看门狗和统一终态。
+- 适配器统一输出米制位姿；航向角以 +x 为零，逆时针为正。设备原生坐标由适配器负责转换。
+- 本地 `simulated` 模式允许 Agent 进程直接加载模拟器，仅用于开发测试。
+- HTTP/Socket 模式必须经过独立网关，真实硬件接入统一使用该模式。
 
 ## 运行状态
 
@@ -303,9 +395,10 @@ robot_state.json
 2. 新增模型：放入 models
 3. 扩展计划能力：放入 planning
 4. 扩展状态能力：放入 state
-5. 扩展机器人能力：放入 robot
-6. Web 功能复杂后，再考虑拆 web_server.py
-7. agent_loop.py 暂时保持稳定，不优先拆
+5. 扩展机器人高层工具：放入 agent/robot
+6. 扩展机器人执行和硬件：放入 robot_runtime
+7. Web 功能复杂后，再考虑拆 web_server.py
+8. agent_loop.py 保持稳定，显式路由放入 routing
 ```
 
 当前项目的主要扩展点：
@@ -315,5 +408,9 @@ robot_state.json
 模型扩展点：agent/models/
 计划扩展点：agent/planning/
 状态扩展点：agent/state/
-机器人扩展点：agent/robot/
+执行扩展点：agent/execution/
+路由扩展点：agent/routing/
+机器人客户端扩展点：agent/robot/
+机器人执行扩展点：robot_runtime/
+跨层协议扩展点：contracts/
 ```

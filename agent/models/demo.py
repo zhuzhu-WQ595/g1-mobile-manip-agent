@@ -1,72 +1,56 @@
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
+from ..routing.intent_parser import (
+    PLAN_REF_PATTERN,
+    TASK_REF_PATTERN,
+    clean_plan_ref,
+    clean_task_ref,
+    natural_task_cycle_arguments,
+)
 from .base import latest_tool_text, latest_user_text
-
-
-TASK_REF_PATTERN = (
-    r"<?("
-    r"task_\d+|"
-    r"current(?: task)?|latest(?: task)?|last(?: task)?|recent(?: task)?|"
-    r"当前任务|当前|最新任务|最新|最近任务|最近|刚才的任务|刚才那个任务|上一个任务"
-    r")>?"
-)
-
-PLAN_REF_PATTERN = (
-    r"<?("
-    r"plan_\d+|"
-    r"current(?: plan)?|latest(?: plan)?|last(?: plan)?|recent(?: plan)?|"
-    r"当前计划|当前|最新计划|最新|最近计划|最近|刚才的计划|刚才那个计划|上一个计划"
-    r")>?"
-)
-
-
-def clean_task_ref(value: str) -> str:
-    return value.strip().strip("<>").lower()
-
-
-def clean_plan_ref(value: str) -> str:
-    return value.strip().strip("<>").lower()
-
-
-def natural_task_cycle_arguments(text: str) -> dict[str, Any] | None:
-    stripped = text.strip()
-    lowered = stripped.lower()
-    asks_full_cycle = any(
-        token in lowered
-        for token in (
-            "complete",
-            "end-to-end",
-            "full cycle",
-            "full workflow",
-            "run through",
-            "plan and execute",
-        )
-    ) or any(token in stripped for token in ("完整", "全流程", "完整流程", "自动规划并执行", "规划并执行"))
-    asks_project_structure = any(
-        token in lowered
-        for token in ("project structure", "workspace structure", "inspect project", "check project")
-    ) or any(token in stripped for token in ("项目结构", "工程结构", "当前项目", "项目"))
-    asks_summary = any(token in lowered for token in ("summary", "summarize", "report")) or any(
-        token in stripped for token in ("总结", "汇总", "报告")
-    )
-
-    if asks_project_structure and (asks_full_cycle or asks_summary):
-        return {
-            "title": "检查项目结构",
-            "steps": ["workspace summary", "list files in agent", "read README.md", "summarize results"],
-        }
-    return None
 
 
 class DemoModel:
     """A deterministic local model for testing the agent loop without an API key."""
 
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], system_prompt: str | None = None) -> dict[str, Any]:
+        user_text = latest_user_text(messages).strip()
         tool_text = latest_tool_text(messages)
         if tool_text is not None and messages[-1].get("role") == "tool":
+            tool_name = str(messages[-1].get("name", ""))
+            conditional_move = self._conditional_move_arguments(user_text)
+            if tool_name == "perception_check_path" and conditional_move is not None:
+                if tool_text.startswith("ERROR:"):
+                    return {
+                        "type": "message",
+                        "text": "感知失败，无法确认路径安全，因此不会执行移动。\n" + tool_text,
+                    }
+                try:
+                    observation = json.loads(tool_text)
+                except json.JSONDecodeError:
+                    observation = {}
+                if isinstance(observation, dict) and observation.get("path_clear") is True:
+                    return self._tool("robot_move", conditional_move)
+                return {
+                    "type": "message",
+                    "text": "感知结果显示路径不安全，因此未执行移动。",
+                }
+            if tool_name in {"robot_move", "robot_get_action_status"} and conditional_move is not None:
+                try:
+                    feedback = json.loads(tool_text)
+                except json.JSONDecodeError:
+                    feedback = {}
+                status = str(feedback.get("status", "")) if isinstance(feedback, dict) else ""
+                action_id = str(feedback.get("action_id", "")) if isinstance(feedback, dict) else ""
+                if status in {"pending", "running"} and action_id:
+                    return self._tool("robot_get_action_status", {"action_id": action_id})
+                if status == "succeeded":
+                    return {"type": "message", "text": "路径检查通过，机器人移动已完成。"}
+                return {"type": "message", "text": "机器人移动未成功完成，不再继续执行。"}
             if tool_text.startswith("ERROR:"):
                 return {
                     "type": "message",
@@ -78,7 +62,6 @@ class DemoModel:
                 }
             return {"type": "message", "text": f"工具结果：\n{tool_text}"}
 
-        user_text = latest_user_text(messages).strip()
         lowered = user_text.lower()
 
         if lowered in {"help", "what can you do", "what can you do?", "你会做什么", "你能做什么", "你可以做什么", "帮助"}:
@@ -429,6 +412,51 @@ class DemoModel:
         if lowered in {"python version", "python --version"}:
             return self._tool("run_command", {"command": "python --version"})
 
+        if lowered in {"observe environment", "perception observe", "观察环境", "感知环境"}:
+            return self._tool("perception_observe", {"source": "front_sensor"})
+
+        conditional_move = self._conditional_move_arguments(user_text)
+        if conditional_move is not None:
+            return self._tool(
+                "perception_check_path",
+                {
+                    "direction": conditional_move["direction"],
+                    "distance": conditional_move["distance"],
+                },
+            )
+
+        match = re.match(
+            r"^check path\s+(forward|backward)\s+([0-9]+(?:\.[0-9]+)?)$",
+            lowered,
+        )
+        if match:
+            return self._tool(
+                "perception_check_path",
+                {"direction": match.group(1), "distance": float(match.group(2))},
+            )
+
+        match = re.match(
+            r"^call service\s+([A-Za-z0-9_.-]+)\s+operation\s+([A-Za-z0-9_.-]+)(?:\s+::\s*(.+))?$",
+            user_text,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        if match:
+            payload_text = (match.group(3) or "{}").strip()
+            try:
+                payload = json.loads(payload_text)
+            except json.JSONDecodeError:
+                return {"type": "message", "text": "远程服务参数必须是 JSON 对象。"}
+            if not isinstance(payload, dict):
+                return {"type": "message", "text": "远程服务参数必须是 JSON 对象。"}
+            return self._tool(
+                "invoke_remote_service",
+                {
+                    "service": match.group(1),
+                    "operation": match.group(2),
+                    "payload": payload,
+                },
+            )
+
         return {
             "type": "message",
             "text": self._fallback_text(),
@@ -440,6 +468,34 @@ class DemoModel:
             "tool_calls": [{"id": "demo_call_1", "name": name, "arguments": arguments}],
         }
 
+    @staticmethod
+    def _conditional_move_arguments(text: str) -> dict[str, Any] | None:
+        lowered = text.lower()
+        conditional = any(
+            marker in lowered
+            for marker in ("only if", "if clear", "if safe", "如果安全", "路径安全", "安全才")
+        )
+        if not conditional:
+            return None
+        match = re.search(
+            r"\b(forward|backward)\s+([0-9]+(?:\.[0-9]+)?)\s*(?:m|meter|meters)?\b",
+            lowered,
+        )
+        if match:
+            return {
+                "direction": match.group(1),
+                "distance": float(match.group(2)),
+                "speed": 0.1,
+            }
+        match = re.search(r"向(前|后)移动\s*([0-9]+(?:\.[0-9]+)?)\s*米", text)
+        if match:
+            return {
+                "direction": "forward" if match.group(1) == "前" else "backward",
+                "distance": float(match.group(2)),
+                "speed": 0.1,
+            }
+        return None
+
     def _capability_text(self) -> str:
         return (
             "我现在运行在本地演示模式，主要用于验证 Agent 的核心流程。\n\n"
@@ -449,6 +505,8 @@ class DemoModel:
             "- 文件覆盖前的审批流程\n"
             "- 多步计划的创建、执行、结果写回和失败诊断\n"
             "- 任务状态、实验记录和工具调用日志\n\n"
+            "- 通过服务白名单调用外部 HTTP 软件能力\n\n"
+            "- 通过独立感知服务获取结构化环境与路径观察\n\n"
             "注意：当前 Web 模式默认使用规则型 demo 模型，不是真正的大模型闲聊能力。"
             "如果要更自然的中文理解和自由问答，需要切换到真实模型。"
         )

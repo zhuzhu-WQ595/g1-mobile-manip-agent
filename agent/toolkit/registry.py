@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from ..robot.robot_tools import ROBOT_TOOL_HANDLERS, ROBOT_TOOL_SCHEMAS
+from ..robot.tools import ROBOT_TOOL_HANDLERS, ROBOT_TOOL_SCHEMAS
 
 from .command_tools import COMMAND_TOOL_HANDLERS, COMMAND_TOOL_SCHEMAS
 from .experiment_tools import EXPERIMENT_TOOL_HANDLERS, EXPERIMENT_TOOL_SCHEMAS
 from .file_tools import FILE_TOOL_HANDLERS, FILE_TOOL_SCHEMAS
 from .schema import ToolHandler
+from .service_tools import REMOTE_SERVICE_TOOL_SCHEMAS
 from .state_tools import STATE_TOOL_HANDLERS, STATE_TOOL_SCHEMAS
 from .workspace_tools import WORKSPACE_TOOL_HANDLERS, WORKSPACE_TOOL_SCHEMAS
 
@@ -17,6 +18,7 @@ TOOL_SCHEMAS: list[dict[str, object]] = [
     *WORKSPACE_TOOL_SCHEMAS,
     *EXPERIMENT_TOOL_SCHEMAS,
     *ROBOT_TOOL_SCHEMAS,
+    *REMOTE_SERVICE_TOOL_SCHEMAS,
 ]
 
 
