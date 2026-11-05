@@ -9,6 +9,30 @@ recorded to a dual-view MP4.
 > capability contracts, execution-resource scheduling, approvals, and
 > physics/VLM result verification instead of blind tool calls.
 
+## Demo
+
+Mission: *"Go to the kitchen, open the fridge, pick the apple, carry it to
+the dining table and place it."*
+
+<p align="center">
+  <img src="docs/report_assets/arch.png" width="80%" alt="architecture">
+</p>
+
+<p align="center">
+  <img src="docs/report_assets/seg_8s.png" width="30%" alt="navigate to fridge">
+  <img src="docs/report_assets/seg_65s.png" width="30%" alt="open fridge / pick apple">
+  <img src="docs/report_assets/seg_160s.png" width="30%" alt="place apple on table">
+</p>
+
+<p align="center">
+  <img src="docs/report_assets/room_map.png" width="45%" alt="annotated occupancy map">
+  <img src="docs/report_assets/terminal.png" width="45%" alt="agent execution log">
+</p>
+
+🎥 Full dual-view mission video:
+[`docs/report_assets/isaac_rec.mp4`](docs/report_assets/isaac_rec.mp4)
+(~4 min, 238 s real-time @5 fps capture).
+
 ## Highlights
 
 - **ReAct-style agent loop** (`agent/agent_loop.py`) with per-turn capability
