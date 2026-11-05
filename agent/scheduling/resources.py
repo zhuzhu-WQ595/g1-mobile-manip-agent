@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import datetime, timezone
 from threading import RLock
 
+from contracts.execution import utc_now
 from contracts.resource import ExecutionResource, ResourceStatus
 
 from ..capabilities import CAPABILITY_REGISTRY, CapabilityRegistry
@@ -65,6 +67,93 @@ class ResourceRegistry:
             )
             self._resources[resource_id] = updated
             return updated
+
+    def mark_busy(self, resource_id: str) -> ExecutionResource:
+        return self.update_runtime(resource_id, status=ResourceStatus.BUSY)
+
+    def heartbeat(
+        self,
+        resource_id: str,
+        *,
+        load: float | None = None,
+        observed_at: str | None = None,
+    ) -> ExecutionResource:
+        with self._lock:
+            current = self.get(resource_id)
+            updated = replace(
+                current,
+                status=ResourceStatus.AVAILABLE,
+                load=load if load is not None else current.load,
+                last_seen_at=observed_at or utc_now(),
+                consecutive_failures=0,
+                last_error=None,
+            )
+            self._resources[resource_id] = updated
+            return updated
+
+    def release(self, resource_id: str) -> ExecutionResource:
+        with self._lock:
+            current = self.get(resource_id)
+            updated = replace(current, status=ResourceStatus.AVAILABLE)
+            self._resources[resource_id] = updated
+            return updated
+
+    def record_failure(
+        self,
+        resource_id: str,
+        error: str,
+        *,
+        observed_at: str | None = None,
+    ) -> ExecutionResource:
+        with self._lock:
+            current = self.get(resource_id)
+            failures = current.consecutive_failures + 1
+            status = (
+                ResourceStatus.OFFLINE
+                if failures >= current.failure_threshold
+                else ResourceStatus.DEGRADED
+            )
+            updated = replace(
+                current,
+                status=status,
+                last_seen_at=observed_at or utc_now(),
+                consecutive_failures=failures,
+                last_error=error,
+            )
+            self._resources[resource_id] = updated
+            return updated
+
+    def refresh_stale(self, now: datetime | None = None) -> tuple[ExecutionResource, ...]:
+        current_time = now or datetime.now(timezone.utc)
+        changed: list[ExecutionResource] = []
+        with self._lock:
+            for resource_id, resource in tuple(self._resources.items()):
+                timeout = resource.heartbeat_timeout_s
+                if timeout is None:
+                    continue
+                if resource.last_seen_at is None:
+                    status = ResourceStatus.OFFLINE
+                else:
+                    try:
+                        last_seen = datetime.fromisoformat(resource.last_seen_at)
+                    except ValueError:
+                        status = ResourceStatus.OFFLINE
+                    else:
+                        if last_seen.tzinfo is None:
+                            last_seen = last_seen.replace(tzinfo=timezone.utc)
+                        age = (current_time - last_seen).total_seconds()
+                        if age > timeout:
+                            status = ResourceStatus.OFFLINE
+                        elif age > timeout / 2 and resource.status is ResourceStatus.AVAILABLE:
+                            status = ResourceStatus.DEGRADED
+                        else:
+                            continue
+                if status is resource.status:
+                    continue
+                updated = replace(resource, status=status)
+                self._resources[resource_id] = updated
+                changed.append(updated)
+        return tuple(changed)
 
 
 def build_default_resource_registry(

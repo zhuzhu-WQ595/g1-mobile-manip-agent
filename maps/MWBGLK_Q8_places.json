@@ -1,0 +1,120 @@
+{
+ "home": {
+  "x": 0.0,
+  "y": 0.0,
+  "yaw_deg": 0.0,
+  "note": "G1 spawn, corridor",
+  "clearance_m": 0.3,
+  "free": true
+ },
+ "kitchen": {
+  "x": 3.72,
+  "y": -4.24,
+  "yaw_deg": -89.0,
+  "note": "fridge front, kitchen",
+  "target": {
+   "x": 3.732,
+   "y": -4.945
+  },
+  "clearance_m": 0.45
+ },
+ "stove": {
+  "x": 2.87,
+  "y": -4.29,
+  "yaw_deg": -90.1,
+  "note": "stove area in kitchen",
+  "target": {
+   "x": 2.869,
+   "y": -4.998
+  },
+  "clearance_m": 0.4
+ },
+ "dining_table": {
+  "x": 4.02,
+  "y": -1.74,
+  "yaw_deg": -156.4,
+  "note": "dining table area",
+  "target": {
+   "x": 3.378,
+   "y": -2.025
+  },
+  "clearance_m": 0.45
+ },
+ "living_room": {
+  "x": 4.82,
+  "y": 1.71,
+  "yaw_deg": -179.2,
+  "note": "living room, tea table",
+  "target": {
+   "x": 4.039,
+   "y": 1.695
+  },
+  "clearance_m": 0.35
+ },
+ "tv": {
+  "x": 4.92,
+  "y": 1.81,
+  "yaw_deg": -29.1,
+  "note": "TV area in living room",
+  "target": {
+   "x": 5.531,
+   "y": 1.466
+  },
+  "clearance_m": 0.35
+ },
+ "bedroom_1": {
+  "x": -5.08,
+  "y": 3.91,
+  "yaw_deg": -166.1,
+  "note": "bedroom 1 (west)",
+  "target": {
+   "x": -5.796,
+   "y": 3.728
+  },
+  "clearance_m": 0.32
+ },
+ "bedroom_2": {
+  "x": -3.48,
+  "y": 1.26,
+  "yaw_deg": 0.4,
+  "note": "bedroom 2",
+  "target": {
+   "x": -2.508,
+   "y": 1.262
+  },
+  "clearance_m": 0.35
+ },
+ "study": {
+  "x": -1.93,
+  "y": -1.64,
+  "yaw_deg": 178.3,
+  "note": "study with desk",
+  "target": {
+   "x": -2.635,
+   "y": -1.623
+  },
+  "clearance_m": 0.46
+ },
+ "bathroom": {
+  "x": -4.58,
+  "y": -1.54,
+  "yaw_deg": -106.6,
+  "note": "bathroom, west",
+  "target": {
+   "x": -4.78,
+   "y": -2.216
+  },
+  "clearance_m": 0.4
+ },
+ "balcony": {
+  "x": 4.82,
+  "y": 4.31,
+  "yaw_deg": -13.5,
+  "note": "balcony with washing machines",
+  "target": {
+   "x": 5.495,
+   "y": 4.144
+  },
+  "clearance_m": 0.4
+ }
+}

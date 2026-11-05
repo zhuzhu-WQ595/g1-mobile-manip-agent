@@ -131,6 +131,27 @@ class RobotFeedbackVerifier:
 
         if successful_receipts == 0:
             return CompletionVerification(False, last_failure)
+
+        # Position-based check for navigation goals
+        last_state = None
+        for event in reversed(robot_events):
+            try:
+                feedback = json.loads(str(event.get("result", "")))
+                if isinstance(feedback, dict) and isinstance(feedback.get("state"), dict):
+                    last_state = feedback["state"]
+                    break
+            except (json.JSONDecodeError, TypeError):
+                continue
+        if last_state is not None:
+            x = last_state.get("x", 0)
+            if _is_navigation_goal(goal) and abs(x) < 15.0:
+                return CompletionVerification(
+                    False,
+                    f"Robot has not reached the endpoint. Current x={x:.2f}m, need |x|>15m. Last tool reported success but position does not confirm goal achievement.",
+                    retryable=True,
+                    source="position_gate",
+                )
+
         if self.critic_model is None:
             return CompletionVerification(
                 True,
@@ -200,4 +221,12 @@ def _is_conditional_motion_goal(goal: str) -> bool:
     return any(
         marker in lowered
         for marker in ("only if", "if clear", "if safe", "如果安全", "路径安全", "安全才")
+    )
+
+
+def _is_navigation_goal(goal: str) -> bool:
+    lowered = goal.lower()
+    return any(
+        marker in lowered
+        for marker in ("到达终点", "到达目的地", "navigate", "reach the end", "reach the goal", "到达目标")
     )

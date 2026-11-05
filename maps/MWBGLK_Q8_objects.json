@@ -1,0 +1,1202 @@
+[
+ {
+  "kind": "articulated",
+  "category": "window",
+  "path": "/Root/Meshes/BaseAnimation/window/model_12567880d8e63b564052613a6dc4b3a9_0",
+  "min": [
+   -5.364,
+   4.27,
+   0.9
+  ],
+  "max": [
+   -3.564,
+   4.447,
+   2.1
+  ],
+  "center": [
+   -4.464,
+   4.358,
+   1.5
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "window",
+  "path": "/Root/Meshes/BaseAnimation/window/model_7461e891ed81c9b272e096e46edbfd5f_0",
+  "min": [
+   -2.596,
+   -3.691,
+   0.6
+  ],
+  "max": [
+   -0.796,
+   -3.514,
+   1.8
+  ],
+  "center": [
+   -1.696,
+   -3.603,
+   1.2
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "window",
+  "path": "/Root/Meshes/BaseAnimation/window/model_9ad5df72fde52da802c7757cee26158a_0",
+  "min": [
+   0.882,
+   3.546,
+   0.6
+  ],
+  "max": [
+   2.082,
+   3.722,
+   1.8
+  ],
+  "center": [
+   1.482,
+   3.634,
+   1.2
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "window",
+  "path": "/Root/Meshes/BaseAnimation/window/model_b6c2c0331d4c27bb8554f1f47b439575_0",
+  "min": [
+   1.175,
+   5.096,
+   0.5
+  ],
+  "max": [
+   4.775,
+   5.332,
+   2.1
+  ],
+  "center": [
+   2.975,
+   5.214,
+   1.3
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "window",
+  "path": "/Root/Meshes/BaseAnimation/window/model_85baf123d9ab4db150b11e44675cdc52_0",
+  "min": [
+   -2.403,
+   4.27,
+   0.9
+  ],
+  "max": [
+   -0.603,
+   4.447,
+   2.1
+  ],
+  "center": [
+   -1.503,
+   4.358,
+   1.5
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "window",
+  "path": "/Root/Meshes/BaseAnimation/window/model_a1f47c68887893f3b789bb144da6b4f7_0",
+  "min": [
+   0.517,
+   -3.691,
+   0.9
+  ],
+  "max": [
+   1.217,
+   -3.514,
+   2.1
+  ],
+  "center": [
+   0.867,
+   -3.603,
+   1.5
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "window",
+  "path": "/Root/Meshes/BaseAnimation/window/model_9fef929dd50749a605191cc2c7fefe35_0",
+  "min": [
+   -5.17,
+   -2.622,
+   0.9
+  ],
+  "max": [
+   -4.47,
+   -2.446,
+   2.1
+  ],
+  "center": [
+   -4.82,
+   -2.534,
+   1.5
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "window",
+  "path": "/Root/Meshes/BaseAnimation/window/model_15d1ab1cc649c255b43fad28c06f159f_0",
+  "min": [
+   -2.982,
+   -3.489,
+   0.6
+  ],
+  "max": [
+   -2.805,
+   -2.789,
+   2.1
+  ],
+  "center": [
+   -2.894,
+   -3.139,
+   1.35
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "window",
+  "path": "/Root/Meshes/BaseAnimation/window/model_5d63f9af435b7255e8d445bd7ddf7ec8_0",
+  "min": [
+   1.738,
+   -4.676,
+   0.9
+  ],
+  "max": [
+   1.915,
+   -3.976,
+   2.1
+  ],
+  "center": [
+   1.826,
+   -4.326,
+   1.5
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "window",
+  "path": "/Root/Meshes/BaseAnimation/window/model_850521531d8978ca8e12e812e2a76a63_0",
+  "min": [
+   -0.176,
+   4.607,
+   0.5
+  ],
+  "max": [
+   -0.044,
+   5.057,
+   1.7
+  ],
+  "center": [
+   -0.11,
+   4.832,
+   1.1
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "window",
+  "path": "/Root/Meshes/BaseAnimation/window/model_b2039c584463f072b81c1b2c5e801725_0",
+  "min": [
+   2.577,
+   -2.963,
+   0.9
+  ],
+  "max": [
+   3.777,
+   -2.831,
+   2.1
+  ],
+  "center": [
+   3.177,
+   -2.897,
+   1.5
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "cabinet",
+  "path": "/Root/Meshes/BaseAnimation/cabinet/model_076ecd79f2f7e24b78a0263aec3abc8d_0",
+  "min": [
+   1.854,
+   -5.265,
+   -0.0
+  ],
+  "max": [
+   3.315,
+   -2.99,
+   0.895
+  ],
+  "center": [
+   2.584,
+   -4.128,
+   0.448
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "cabinet",
+  "path": "/Root/Meshes/BaseAnimation/cabinet/model_e7419f536d31133abf8b371a38a3e4be_0",
+  "min": [
+   1.854,
+   -5.265,
+   1.65
+  ],
+  "max": [
+   3.311,
+   -4.872,
+   2.35
+  ],
+  "center": [
+   2.582,
+   -5.069,
+   2.0
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "cabinet",
+  "path": "/Root/Meshes/BaseAnimation/cabinet/model_826ef6ee8b8bb775823cfd98661c6f2d_0",
+  "min": [
+   -4.306,
+   -2.506,
+   0.2
+  ],
+  "max": [
+   -3.106,
+   -1.906,
+   0.76
+  ],
+  "center": [
+   -3.706,
+   -2.206,
+   0.48
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "cabinet",
+  "path": "/Root/Meshes/BaseAnimation/cabinet/model_700e95ffc7f2d37ded3ec521836dd262_0",
+  "min": [
+   1.854,
+   -3.795,
+   1.65
+  ],
+  "max": [
+   2.237,
+   -2.99,
+   2.35
+  ],
+  "center": [
+   2.045,
+   -3.393,
+   2.0
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "cabinet",
+  "path": "/Root/Meshes/BaseAnimation/cabinet/model_296fbc78694ce4731b2e3c99479525dc_0",
+  "min": [
+   1.042,
+   -1.908,
+   0.3
+  ],
+  "max": [
+   1.614,
+   -1.108,
+   0.91
+  ],
+  "center": [
+   1.328,
+   -1.508,
+   0.605
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "cabinet",
+  "path": "/Root/Meshes/BaseAnimation/cabinet/model_dbd3cb0ff8356716bd59e8cb595f265d_0",
+  "min": [
+   0.064,
+   0.312,
+   -0.0
+  ],
+  "max": [
+   0.664,
+   3.613,
+   2.6
+  ],
+  "center": [
+   0.364,
+   1.963,
+   1.3
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "cabinet",
+  "path": "/Root/Meshes/BaseAnimation/cabinet/model_a93dba34407dad3871b75a155e21a548_0",
+  "min": [
+   -2.866,
+   0.432,
+   0.0
+  ],
+  "max": [
+   -1.169,
+   1.0,
+   2.6
+  ],
+  "center": [
+   -2.018,
+   0.716,
+   1.3
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "cabinet",
+  "path": "/Root/Meshes/BaseAnimation/cabinet/model_0e865000c5a12a4702500917cc0cad73_0",
+  "min": [
+   -6.106,
+   -0.773,
+   0.0
+  ],
+  "max": [
+   -3.947,
+   0.905,
+   2.5
+  ],
+  "center": [
+   -5.027,
+   0.066,
+   1.25
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "door",
+  "path": "/Root/Meshes/BaseAnimation/door/model_5f013e0d891c76aeecd3e21cf11dea91_0",
+  "min": [
+   3.4028234663852885e+36,
+   3.4028234663852885e+36,
+   3.4028234663852885e+36
+  ],
+  "max": [
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36
+  ],
+  "center": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "door",
+  "path": "/Root/Meshes/BaseAnimation/door/model_cf3d08857d169c7d0f90a02562bdbf3f_0",
+  "min": [
+   4.397,
+   -5.029,
+   -0.0
+  ],
+  "max": [
+   5.393,
+   -4.679,
+   2.156
+  ],
+  "center": [
+   4.895,
+   -4.854,
+   1.078
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "door",
+  "path": "/Root/Meshes/BaseAnimation/door/model_bb321f2b76a07b00b90f855667df35bc_0",
+  "min": [
+   3.4028234663852885e+36,
+   3.4028234663852885e+36,
+   3.4028234663852885e+36
+  ],
+  "max": [
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36
+  ],
+  "center": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "door",
+  "path": "/Root/Meshes/BaseAnimation/door/model_bfc043a0a71e580787ed46abf795b1bb_0",
+  "min": [
+   3.4028234663852885e+36,
+   3.4028234663852885e+36,
+   3.4028234663852885e+36
+  ],
+  "max": [
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36
+  ],
+  "center": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "door",
+  "path": "/Root/Meshes/BaseAnimation/door/model_a18c719bbc9389b7892543501ae4494f_0",
+  "min": [
+   3.4028234663852885e+36,
+   3.4028234663852885e+36,
+   3.4028234663852885e+36
+  ],
+  "max": [
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36
+  ],
+  "center": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "door",
+  "path": "/Root/Meshes/BaseAnimation/door/model_4c630345d638858e6258da1980c2367c_0",
+  "min": [
+   3.4028234663852885e+36,
+   3.4028234663852885e+36,
+   3.4028234663852885e+36
+  ],
+  "max": [
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36
+  ],
+  "center": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "door",
+  "path": "/Root/Meshes/BaseAnimation/door/model_06d6e7a4f664bda8510f3cc0dae6bfc9_0",
+  "min": [
+   3.4028234663852885e+36,
+   3.4028234663852885e+36,
+   3.4028234663852885e+36
+  ],
+  "max": [
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36
+  ],
+  "center": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "door",
+  "path": "/Root/Meshes/BaseAnimation/door/model_83288fc8cb39af463e2f2868d32c532a_0",
+  "min": [
+   3.4028234663852885e+36,
+   3.4028234663852885e+36,
+   3.4028234663852885e+36
+  ],
+  "max": [
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36
+  ],
+  "center": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "door_BDD0C251_4442_416E_A6EC_FEA7E3C07E82",
+  "path": "/Root/Meshes/BaseAnimation/door_BDD0C251_4442_416E_A6EC_FEA7E3C07E82/model_d41d8cd98f00b204e9800998ecf8427e_0",
+  "min": [
+   3.4028234663852885e+36,
+   3.4028234663852885e+36,
+   3.4028234663852885e+36
+  ],
+  "max": [
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36,
+   -3.4028234663852885e+36
+  ],
+  "center": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "toilet",
+  "path": "/Root/Meshes/Animation/toilet/model_264c6e771303dcdcf5597f9788f7a892_0",
+  "min": [
+   1.033,
+   -2.549,
+   -0.0
+  ],
+  "max": [
+   1.614,
+   -2.108,
+   0.419
+  ],
+  "center": [
+   1.324,
+   -2.328,
+   0.21
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "toilet",
+  "path": "/Root/Meshes/Animation/toilet/model_838953eea7be190dbfd2c135bff468ea_0",
+  "min": [
+   -5.001,
+   -2.506,
+   -0.0
+  ],
+  "max": [
+   -4.559,
+   -1.926,
+   0.419
+  ],
+  "center": [
+   -4.78,
+   -2.216,
+   0.21
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "faucet",
+  "path": "/Root/Meshes/Animation/faucet/model_8368245cbaf256dd8e4f4f3fff8f3771_0",
+  "min": [
+   1.4,
+   -1.515,
+   0.855
+  ],
+  "max": [
+   1.57,
+   -1.457,
+   1.013
+  ],
+  "center": [
+   1.485,
+   -1.486,
+   0.934
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "faucet",
+  "path": "/Root/Meshes/Animation/faucet/model_2481cce969a1a5bb8109de1dfd7d6b59_0",
+  "min": [
+   1.9,
+   -3.551,
+   0.848
+  ],
+  "max": [
+   2.133,
+   -3.412,
+   1.143
+  ],
+  "center": [
+   2.016,
+   -3.482,
+   0.996
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "faucet",
+  "path": "/Root/Meshes/Animation/faucet/model_bd87aef24269c096d861652ee04a7fa1_0",
+  "min": [
+   -3.964,
+   -2.508,
+   0.755
+  ],
+  "max": [
+   -3.913,
+   -2.329,
+   0.919
+  ],
+  "center": [
+   -3.939,
+   -2.418,
+   0.837
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "sideboardcabinet",
+  "path": "/Root/Meshes/Animation/sideboardcabinet/model_3a2126e763590124c5db15af6285f805_0",
+  "min": [
+   5.381,
+   -2.266,
+   0.0
+  ],
+  "max": [
+   5.781,
+   -0.898,
+   0.808
+  ],
+  "center": [
+   5.581,
+   -1.582,
+   0.404
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "chestofdrawers",
+  "path": "/Root/Meshes/Animation/chestofdrawers/model_33753afe111d1c856ee4c318a57538da_0",
+  "min": [
+   5.363,
+   -3.863,
+   0.0
+  ],
+  "max": [
+   5.781,
+   -2.455,
+   0.858
+  ],
+  "center": [
+   5.572,
+   -3.159,
+   0.429
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "shoecabinet",
+  "path": "/Root/Meshes/Animation/shoecabinet/model_942768bea270c44bc9fa77c9f478bf8a_0",
+  "min": [
+   5.423,
+   -4.764,
+   0.0
+  ],
+  "max": [
+   5.781,
+   -3.947,
+   1.05
+  ],
+  "center": [
+   5.602,
+   -4.355,
+   0.525
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "tvstand",
+  "path": "/Root/Meshes/Animation/tvstand/model_c3ab573645a80dda22e0be5c6482d148_0",
+  "min": [
+   5.281,
+   -0.245,
+   -0.0
+  ],
+  "max": [
+   5.781,
+   3.177,
+   0.464
+  ],
+  "center": [
+   5.531,
+   1.466,
+   0.232
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "teatable",
+  "path": "/Root/Meshes/Animation/teatable/model_7007b72f36ddb2ddfde08ad3525c91ce_0",
+  "min": [
+   3.623,
+   0.997,
+   0.008
+  ],
+  "max": [
+   4.454,
+   2.394,
+   0.361
+  ],
+  "center": [
+   4.039,
+   1.695,
+   0.184
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "nightstand",
+  "path": "/Root/Meshes/Animation/nightstand/model_7fa62543984e94d5c77f9d5480b2e553_0",
+  "min": [
+   -6.013,
+   3.43,
+   -0.0
+  ],
+  "max": [
+   -5.58,
+   4.027,
+   0.49
+  ],
+  "center": [
+   -5.796,
+   3.728,
+   0.245
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "nightstand",
+  "path": "/Root/Meshes/Animation/nightstand/model_12bed18139297b3710ad196c7f6e3157_0",
+  "min": [
+   -6.024,
+   1.103,
+   -0.0
+  ],
+  "max": [
+   -5.591,
+   1.701,
+   0.49
+  ],
+  "center": [
+   -5.808,
+   1.402,
+   0.245
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "nightstand",
+  "path": "/Root/Meshes/Animation/nightstand/model_3e556f315b1a2c167ca41e3236a2e7e2_0",
+  "min": [
+   -2.702,
+   1.024,
+   0.0
+  ],
+  "max": [
+   -2.315,
+   1.499,
+   0.446
+  ],
+  "center": [
+   -2.508,
+   1.262,
+   0.223
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "nightstand",
+  "path": "/Root/Meshes/Animation/nightstand/model_6aa46ead7b383009faf20ce1fd0b7364_0",
+  "min": [
+   -2.673,
+   3.206,
+   0.0
+  ],
+  "max": [
+   -2.286,
+   3.682,
+   0.446
+  ],
+  "center": [
+   -2.48,
+   3.444,
+   0.223
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "desk",
+  "path": "/Root/Meshes/Animation/desk/model_549c97eff42f1a6ec00bbfbd1a3cd0fe_0",
+  "min": [
+   -2.866,
+   -2.223,
+   -0.0
+  ],
+  "max": [
+   -2.404,
+   -1.023,
+   0.801
+  ],
+  "center": [
+   -2.635,
+   -1.623,
+   0.401
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "other",
+  "path": "/Root/Meshes/Animation/other/model_a05967e4b3d5990a9377ec6896711799_0",
+  "min": [
+   3.831,
+   2.458,
+   0.007
+  ],
+  "max": [
+   4.36,
+   2.707,
+   0.397
+  ],
+  "center": [
+   4.096,
+   2.582,
+   0.202
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "other",
+  "path": "/Root/Meshes/Animation/other/model_40fae7ad9e7a541d3ec277629ee2ce85_0",
+  "min": [
+   2.816,
+   -3.519,
+   0.0
+  ],
+  "max": [
+   3.065,
+   -2.99,
+   0.39
+  ],
+  "center": [
+   2.941,
+   -3.254,
+   0.195
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "pot",
+  "path": "/Root/Meshes/Animation/pot/model_512d4823fea39fb02ab7941eee13200a_0",
+  "min": [
+   3.264,
+   -2.1,
+   0.745
+  ],
+  "max": [
+   3.493,
+   -1.95,
+   0.984
+  ],
+  "center": [
+   3.378,
+   -2.025,
+   0.864
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "microwave",
+  "path": "/Root/Meshes/Animation/microwave/model_174d4c97b7c8f6e0909457bb53a65e6f_0",
+  "min": [
+   1.883,
+   -4.381,
+   0.845
+  ],
+  "max": [
+   2.227,
+   -3.895,
+   1.121
+  ],
+  "center": [
+   2.055,
+   -4.138,
+   0.983
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "oven",
+  "path": "/Root/Meshes/Animation/oven/model_53f3da58a092d29e4f2c037fdfd01287_0",
+  "min": [
+   1.854,
+   -5.265,
+   0.845
+  ],
+  "max": [
+   2.257,
+   -4.785,
+   1.149
+  ],
+  "center": [
+   2.055,
+   -5.025,
+   0.997
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "refrigerator",
+  "path": "/Root/Meshes/Animation/refrigerator/model_06769d75eb1df5724705ccf745aa9d26_0",
+  "min": [
+   3.389,
+   -5.346,
+   0.0
+  ],
+  "max": [
+   4.075,
+   -4.543,
+   1.829
+  ],
+  "center": [
+   3.732,
+   -4.945,
+   0.915
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "hearth",
+  "path": "/Root/Meshes/Animation/hearth/model_2ff3c0d846b1bd74dd968df50fab87b0_0",
+  "min": [
+   2.523,
+   -5.203,
+   0.845
+  ],
+  "max": [
+   3.216,
+   -4.793,
+   0.937
+  ],
+  "center": [
+   2.869,
+   -4.998,
+   0.891
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "pan",
+  "path": "/Root/Meshes/Animation/pan/model_62978965a09a8465c044dc3a294aebd8_0",
+  "min": [
+   2.535,
+   -5.189,
+   0.943
+  ],
+  "max": [
+   2.783,
+   -4.727,
+   1.071
+  ],
+  "center": [
+   2.659,
+   -4.958,
+   1.007
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "pan",
+  "path": "/Root/Meshes/Animation/pan/model_d27823a2fae5776b881487bf52c2b634_0",
+  "min": [
+   2.931,
+   -5.122,
+   0.936
+  ],
+  "max": [
+   3.22,
+   -4.784,
+   1.083
+  ],
+  "center": [
+   3.076,
+   -4.953,
+   1.009
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "washingmachine",
+  "path": "/Root/Meshes/Animation/washingmachine/model_1761ac0270b98dbed5b70b2b1f8f0244_0",
+  "min": [
+   5.23,
+   3.846,
+   -0.0
+  ],
+  "max": [
+   5.76,
+   4.441,
+   0.84
+  ],
+  "center": [
+   5.495,
+   4.144,
+   0.42
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "washingmachine",
+  "path": "/Root/Meshes/Animation/washingmachine/model_aa33462b6b4a2023abcda1f3dc60133b_0",
+  "min": [
+   5.161,
+   4.501,
+   -0.0
+  ],
+  "max": [
+   5.781,
+   5.096,
+   0.866
+  ],
+  "center": [
+   5.471,
+   4.799,
+   0.433
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "electriccooker",
+  "path": "/Root/Meshes/Animation/electriccooker/model_8e00904e0b393e898d8542c155112d44_0",
+  "min": [
+   1.89,
+   -4.734,
+   0.845
+  ],
+  "max": [
+   2.263,
+   -4.452,
+   1.103
+  ],
+  "center": [
+   2.077,
+   -4.593,
+   0.974
+  ]
+ },
+ {
+  "kind": "articulated",
+  "category": "dishwasher",
+  "path": "/Root/Meshes/Animation/dishwasher/model_4cce33539c4e4301946478fa325067a8_0",
+  "min": [
+   3.042,
+   -3.655,
+   -0.0
+  ],
+  "max": [
+   3.758,
+   -3.056,
+   0.807
+  ],
+  "center": [
+   3.4,
+   -3.356,
+   0.404
+  ]
+ },
+ {
+  "kind": "pickable",
+  "category": "lamp",
+  "path": "/Root/Meshes/Furnitures/lamp/model_81b2d9be392fb8183e1135b2ddf6b521_0",
+  "min": [
+   -2.893,
+   -2.264,
+   0.75
+  ],
+  "max": [
+   -2.564,
+   -1.895,
+   1.303
+  ],
+  "center": [
+   -2.729,
+   -2.079,
+   1.026
+  ]
+ },
+ {
+  "kind": "pickable",
+  "category": "pot",
+  "path": "/Root/Meshes/Animation/pot/model_512d4823fea39fb02ab7941eee13200a_0",
+  "min": [
+   3.264,
+   -2.1,
+   0.745
+  ],
+  "max": [
+   3.493,
+   -1.95,
+   0.984
+  ],
+  "center": [
+   3.378,
+   -2.025,
+   0.864
+  ]
+ },
+ {
+  "kind": "pickable",
+  "category": "pan",
+  "path": "/Root/Meshes/Animation/pan/model_62978965a09a8465c044dc3a294aebd8_0",
+  "min": [
+   2.535,
+   -5.189,
+   0.943
+  ],
+  "max": [
+   2.783,
+   -4.727,
+   1.071
+  ],
+  "center": [
+   2.659,
+   -4.958,
+   1.007
+  ]
+ },
+ {
+  "kind": "pickable",
+  "category": "pan",
+  "path": "/Root/Meshes/Animation/pan/model_d27823a2fae5776b881487bf52c2b634_0",
+  "min": [
+   2.931,
+   -5.122,
+   0.936
+  ],
+  "max": [
+   3.22,
+   -4.784,
+   1.083
+  ],
+  "center": [
+   3.076,
+   -4.953,
+   1.009
+  ]
+ }
+]

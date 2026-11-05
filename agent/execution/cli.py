@@ -5,7 +5,7 @@ import sys
 
 from ..models import DemoModel, load_model_from_env
 from .reporting import write_goal_report
-from .runner import GoalRunner, ROBOT_GOAL_TOOLS
+from .runner import GoalRunner, MOBILE_MANIP_GOAL_TOOLS, MOBILE_MANIP_RULES, ROBOT_GOAL_TOOLS
 from .verification import RobotFeedbackVerifier
 
 
@@ -20,6 +20,11 @@ def main() -> None:
     parser.add_argument("--output", help="Write the JSON trace to this path.")
     parser.add_argument("--allow-demo", action="store_true", help="Allow the deterministic demo model for a local check.")
     parser.add_argument("--robot", action="store_true", help="Enable robot tools and feedback verification.")
+    parser.add_argument(
+        "--mobile-manip",
+        action="store_true",
+        help="Mobile manipulation mission mode (SLAM navigation + VLA skills; backend via MOBILE_MANIP_BACKEND=mock|isaac).",
+    )
     args = parser.parse_args()
 
     if args.max_steps < 1 or args.max_steps > 20:
@@ -27,6 +32,21 @@ def main() -> None:
     model = load_model_from_env()
     if isinstance(model, DemoModel) and not args.allow_demo:
         parser.error("A real model is required; configure AGENT_PROVIDER or pass --allow-demo for a local check.")
+
+    if args.mobile_manip:
+        runner = GoalRunner(
+            model,
+            max_steps=args.max_steps,
+            tool_names=MOBILE_MANIP_GOAL_TOOLS,
+            goal_rules=MOBILE_MANIP_RULES,
+        )
+        result = runner.run(args.goal)
+        path = write_goal_report(result, args.output)
+        print("\n" + result["answer"])
+        print(f"\nstatus: {result['status']} ({result['stop_reason']})")
+        print(f"steps: {result['steps_executed']}")
+        print(f"report: {path}")
+        return
 
     runner = (
         GoalRunner(

@@ -6,6 +6,8 @@ const sendBtn = document.querySelector("#sendBtn");
 const resetBtn = document.querySelector("#resetBtn");
 const serverStatus = document.querySelector("#serverStatus");
 const traceCount = document.querySelector("#traceCount");
+const resourceSummary = document.querySelector("#resourceSummary");
+const resourceList = document.querySelector("#resourceList");
 
 let traceTurn = 0;
 let totalToolCalls = 0;
@@ -149,6 +151,38 @@ function setStatus(text, state) {
   serverStatus.className = `status-pill ${state || ""}`.trim();
 }
 
+function renderResources(payload) {
+  const resources = payload.resources || [];
+  const available = resources.filter((item) => item.status === "available").length;
+  resourceSummary.textContent = `${available}/${resources.length} 可用`;
+  resourceList.textContent = "";
+
+  const labels = {
+    available: "可用",
+    degraded: "降级",
+    busy: "忙碌",
+    offline: "离线",
+  };
+  for (const resource of resources) {
+    const row = document.createElement("div");
+    row.className = "resource-row";
+
+    const details = document.createElement("div");
+    const name = document.createElement("strong");
+    name.textContent = resource.resource_id;
+    const meta = document.createElement("span");
+    meta.textContent = `${resource.execution_target} · 负载 ${Math.round(resource.load * 100)}%`;
+    details.append(name, meta);
+
+    const status = document.createElement("span");
+    status.className = `resource-status ${resource.status}`;
+    status.textContent = labels[resource.status] || resource.status;
+
+    row.append(details, status);
+    resourceList.appendChild(row);
+  }
+}
+
 async function postJson(url, payload = {}) {
   const response = await fetch(url, {
     method: "POST",
@@ -182,6 +216,7 @@ async function sendMessage(text) {
     isSending = false;
     sendBtn.textContent = "发送";
     updateSendState();
+    checkResources();
   }
 }
 
@@ -230,8 +265,21 @@ async function checkHealth() {
   }
 }
 
+async function checkResources() {
+  try {
+    const response = await fetch("/api/resources");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    renderResources(await response.json());
+  } catch {
+    resourceSummary.textContent = "不可用";
+    resourceList.textContent = "资源状态读取失败";
+  }
+}
+
 resetTrace();
 addMessage("agent", "界面已就绪。你可以输入自然语言指令，也可以用左侧快捷指令验证 Agent 的工具调用链路。");
 renderStarter();
 updateSendState();
 checkHealth();
+checkResources();
+setInterval(checkResources, 5000);

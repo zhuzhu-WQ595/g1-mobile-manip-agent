@@ -79,6 +79,7 @@ class ExecutionDispatcher:
                     "resource_selection": selection.reason,
                 },
             )
+            self.resource_registry.mark_busy(resource.resource_id)
             try:
                 target_handler = self._resource_handlers.get(resource.resource_id)
                 if target_handler is None:
@@ -89,18 +90,20 @@ class ExecutionDispatcher:
                 ) from exc
             result = target_handler(active_request, capability, resource)
             if isinstance(result, ExecutionEvent):
-                return self._validate_target_event(active_request, capability, result)
-            return active_request.event(
-                ExecutionStatus.SUCCEEDED,
-                result=result,
-                metadata={"tool": capability.tool_name},
-            )
+                event = self._validate_target_event(active_request, capability, result)
+            else:
+                event = active_request.event(
+                    ExecutionStatus.SUCCEEDED,
+                    result=result,
+                    metadata={"tool": capability.tool_name},
+                )
         except Exception as exc:
-            return active_request.event(
+            event = active_request.event(
                 ExecutionStatus.FAILED,
                 result=f"ERROR: {type(exc).__name__}: {exc}",
                 error=ExecutionError.from_exception(exc),
             )
+        return self._update_resource_health(event)
 
     def _execute_registered_tool(
         self,
@@ -136,6 +139,34 @@ class ExecutionDispatcher:
             event,
             result=result,
             metadata={**request.metadata, **event.metadata, "tool": capability.tool_name},
+        )
+
+    def _update_resource_health(self, event: ExecutionEvent) -> ExecutionEvent:
+        if not event.resource_id:
+            return event
+        if event.status is ExecutionStatus.SUCCEEDED:
+            resource = self.resource_registry.heartbeat(event.resource_id)
+        elif event.status is ExecutionStatus.FAILED and event.error and event.error.retryable:
+            resource = self.resource_registry.record_failure(
+                event.resource_id,
+                event.error.message,
+            )
+        elif event.status is ExecutionStatus.TIMED_OUT:
+            resource = self.resource_registry.record_failure(
+                event.resource_id,
+                event.error.message if event.error else "execution timed out",
+            )
+        elif event.status in {ExecutionStatus.ACCEPTED, ExecutionStatus.RUNNING, ExecutionStatus.WAITING_FEEDBACK}:
+            resource = self.resource_registry.mark_busy(event.resource_id)
+        else:
+            resource = self.resource_registry.release(event.resource_id)
+        return replace(
+            event,
+            metadata={
+                **event.metadata,
+                "resource_health": resource.status.value,
+                "resource_failures": resource.consecutive_failures,
+            },
         )
 
 

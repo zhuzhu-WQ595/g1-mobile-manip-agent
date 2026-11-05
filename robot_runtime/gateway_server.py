@@ -19,7 +19,7 @@ from .safety import validate_command
 class RobotGateway:
     """Thread-safe asynchronous gateway around a runtime adapter."""
 
-    MOTION_ACTIONS = {"move", "rotate"}
+    MOTION_ACTIONS = {"move", "rotate", "kick", "roulade", "ground_pick"}
 
     def __init__(
         self,
@@ -65,10 +65,14 @@ class RobotGateway:
             try:
                 validate_command(command, self.adapter.get_state())
             except ValueError as exc:
+                print(f"  [gateway] REJECTED {command.action}: {exc}")
                 return self._store_failure(command, "Action rejected by gateway safety", str(exc))
 
             if command.action in self.MOTION_ACTIONS and self._active_motion_id() is not None:
+                print(f"  [gateway] REJECTED {command.action}: robot busy")
                 return self._store_failure(command, "Robot is busy with another motion", "robot_busy")
+
+            print(f"  [gateway] ACCEPTED {command.action} params={command.params}")
 
             self._commands[command.action_id] = command
             if command.action in self.MOTION_ACTIONS:
@@ -381,7 +385,7 @@ def main() -> None:
     parser.add_argument(
         "--adapter",
         default=os.environ.get("ROBOT_RUNTIME_ADAPTER", "simulated"),
-        help="Runtime adapter name. Currently available: simulated.",
+        help="Runtime adapter name. Available: simulated, ros2, microduck.",
     )
     args = parser.parse_args()
     if args.host not in {"127.0.0.1", "localhost", "::1"}:

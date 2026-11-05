@@ -5,6 +5,7 @@ from ..robot.tools import ROBOT_TOOL_HANDLERS, ROBOT_TOOL_SCHEMAS
 from .command_tools import COMMAND_TOOL_HANDLERS, COMMAND_TOOL_SCHEMAS
 from .experiment_tools import EXPERIMENT_TOOL_HANDLERS, EXPERIMENT_TOOL_SCHEMAS
 from .file_tools import FILE_TOOL_HANDLERS, FILE_TOOL_SCHEMAS
+from .mobile_tools import MOBILE_TOOL_HANDLERS, MOBILE_TOOL_SCHEMAS
 from .schema import ToolHandler
 from .service_tools import REMOTE_SERVICE_TOOL_SCHEMAS
 from .state_tools import STATE_TOOL_HANDLERS, STATE_TOOL_SCHEMAS
@@ -18,6 +19,7 @@ TOOL_SCHEMAS: list[dict[str, object]] = [
     *WORKSPACE_TOOL_SCHEMAS,
     *EXPERIMENT_TOOL_SCHEMAS,
     *ROBOT_TOOL_SCHEMAS,
+    *MOBILE_TOOL_SCHEMAS,
     *REMOTE_SERVICE_TOOL_SCHEMAS,
 ]
 
@@ -29,4 +31,5 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     **WORKSPACE_TOOL_HANDLERS,
     **EXPERIMENT_TOOL_HANDLERS,
     **ROBOT_TOOL_HANDLERS,
+    **MOBILE_TOOL_HANDLERS,
 }

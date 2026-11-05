@@ -81,7 +81,7 @@ class RobotCommand:
     action: str
     params: dict[str, Any] = field(default_factory=dict)
     action_id: str = field(default_factory=lambda: f"action_{uuid4().hex}")
-    timeout_s: float = 30.0
+    timeout_s: float = 10.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -99,7 +99,7 @@ class RobotCommand:
         params = data.get("params", {})
         if not isinstance(params, dict):
             raise ValueError("params must be an object")
-        timeout_s = float(data.get("timeout_s", 30.0))
+        timeout_s = float(data.get("timeout_s", 10.0))
         if timeout_s <= 0:
             raise ValueError("timeout_s must be greater than 0")
         action_id = str(data.get("action_id", "")).strip()

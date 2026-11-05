@@ -13,6 +13,7 @@ from urllib.parse import unquote
 
 from .agent_loop import Agent
 from .models import load_model_from_env
+from .scheduling import RESOURCE_REGISTRY
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB_ROOT = ROOT / "web"
@@ -25,6 +26,16 @@ def configure_web_provider() -> None:
 
 
 configure_web_provider()
+
+
+def resource_status_payload() -> dict[str, Any]:
+    RESOURCE_REGISTRY.refresh_stale()
+    resources = [resource.to_dict() for resource in RESOURCE_REGISTRY.all()]
+    counts: dict[str, int] = {}
+    for resource in resources:
+        status = str(resource["status"])
+        counts[status] = counts.get(status, 0) + 1
+    return {"resources": resources, "counts": counts, "total": len(resources)}
 
 
 def configure_console_encoding() -> None:
@@ -63,6 +74,9 @@ class AgentWebHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/health":
             self._send_json({"ok": True})
+            return
+        if self.path == "/api/resources":
+            self._send_json(resource_status_payload())
             return
         self.send_error(404, "Not found")
 

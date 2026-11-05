@@ -19,3 +19,22 @@ htmlcov/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Secrets / local env
+.env.bak
+*.env.local
+
+# Unrelated side projects / scratch
+f_problem/
+notes/
+smoke_tmp.md
+vwdevin_bridge_write_test.txt
+test_piper_*.py
+test_lerobot_piper.py
+test_sdk_*.py
+
+# Runtime artifacts
+reports/
+
+# Editor lock files
+.~lock.*#

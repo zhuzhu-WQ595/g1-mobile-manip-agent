@@ -4,7 +4,15 @@ from typing import Any
 
 
 ALLOWED_PLAN_ACTIONS = {"move", "rotate", "stop", "speak", "capture_image"}
-MOTION_TOOLS = {"robot_move", "robot_rotate", "robot_execute_plan"}
+MOTION_TOOLS = {
+    "robot_move",
+    "robot_rotate",
+    "robot_execute_plan",
+    "duck_walk",
+    "duck_kick",
+    "duck_roulade",
+    "duck_ground_pick",
+}
 PERCEPTION_TOOLS = {"perception_observe", "perception_check_path"}
 
 

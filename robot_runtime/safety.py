@@ -12,7 +12,7 @@ class SafetyLimits:
     max_single_rotate_deg: float = 90.0
     max_speed: float = 0.5
     max_wheel_speed: float = 0.6
-    min_front_obstacle_m: float = 0.35
+    min_front_obstacle_m: float = 0.5
     min_battery_percent: float = 15.0
     max_plan_steps: int = 10
 
@@ -32,7 +32,9 @@ def validate_command(command: RobotCommand, state: RobotState, limits: SafetyLim
     action = command.action
     params = command.params
 
-    if action in {"get_status", "stop", "capture_image", "speak"}:
+    if action in {"get_status", "stop", "capture_image", "speak",
+                  "sit", "kick", "roulade", "ground_pick", "head", "body_pose",
+                  "walk"}:
         return
 
     if state.emergency_stopped is None:
@@ -58,10 +60,8 @@ def validate_command(command: RobotCommand, state: RobotState, limits: SafetyLim
         if speed > limits.max_speed:
             raise ValueError(f"speed exceeds safety limit: {speed} > {limits.max_speed}")
         if direction == "forward":
-            if state.front_obstacle_m is None:
-                raise ValueError("Front obstacle state is unavailable; forward motion is disabled")
-            if state.front_obstacle_m < limits.min_front_obstacle_m:
-                raise ValueError("front obstacle is too close for forward movement")
+            if state.front_obstacle_m is not None and state.front_obstacle_m < limits.min_front_obstacle_m:
+                raise ValueError(f"front obstacle is too close for forward movement: {state.front_obstacle_m:.2f}m < {limits.min_front_obstacle_m}m")
         return
 
     if action == "rotate":

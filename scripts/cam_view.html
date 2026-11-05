@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Isaac Bridge Camera</title>
+<style>
+  body { margin:0; background:#111; color:#ddd; font:14px/1.4 monospace; display:flex; flex-direction:column; align-items:center; }
+  #hud { padding:8px; white-space:pre; }
+  img { max-width:96vw; max-height:82vh; image-rendering:auto; border:1px solid #333; }
+</style>
+</head>
+<body>
+<div id="hud">connecting…</div>
+<div id="ctl">
+  <button onclick="rec('start')">开始录制</button>
+  <button onclick="rec('stop')">停止并合成MP4</button>
+  <a href="/video" target="_blank">打开视频</a>
+  <span id="recstatus"></span>
+</div>
+<video id="vid" controls style="max-width:96vw;display:none"></video>
+<img id="cam" alt="camera">
+<script>
+const URL = "http://127.0.0.1:8765/camera";
+const img = document.getElementById("cam");
+const hud = document.getElementById("hud");
+let busy = false;
+async function tick() {
+  if (busy) return;
+  busy = true;
+  try {
+    const r = await fetch(URL);
+    const d = await r.json();
+    if (d.png_b64) {
+      img.src = "data:image/png;base64," + d.png_b64;
+      const p = d.pose || {};
+      hud.textContent =
+        `pose x=${p.x} y=${p.y} yaw=${p.yaw_deg}°  |  ` +
+        `at=${d.at_place || "-"}  holding=${d.holding || "-"}  fridge_open=${d.fridge_open}` +
+        (d.dbg ? `\n${JSON.stringify(d.dbg)}` : "");
+    } else {
+      hud.textContent = "camera error: " + JSON.stringify(d);
+    }
+  } catch (e) {
+    hud.textContent = "bridge unreachable: " + e;
+  }
+  busy = false;
+}
+setInterval(tick, 700);
+tick();
+
+async function rec(cmd) {
+  const st = document.getElementById("recstatus");
+  st.textContent = cmd === "start" ? " recording…" : " encoding…";
+  try {
+    const r = await fetch("http://127.0.0.1:8765/record", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({cmd: cmd})
+    });
+    const d = await r.json();
+    st.textContent = " " + (d.ok ? d.message + (d.frames ? ` (${d.frames}f ${d.size_mb}MB)` : "") : "ERR " + JSON.stringify(d));
+    if (cmd === "stop" && d.ok) {
+      const v = document.getElementById("vid");
+      v.src = "/video?t=" + Date.now();
+      v.style.display = "block";
+      v.play();
+    }
+  } catch (e) { st.textContent = " " + e; }
+}
+</script>
+</body>
+</html>

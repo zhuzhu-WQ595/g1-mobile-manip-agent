@@ -48,6 +48,14 @@ def create_runtime_adapter(
         from .simulator import SimulatedRobotAdapter
 
         return SimulatedRobotAdapter(time_scale=sim_time_scale)
+    if selected == "ros2":
+        from .ros2_adapter import ROS2RobotAdapter
+
+        return ROS2RobotAdapter()
+    if selected == "microduck":
+        from .microduck_adapter import MicroDuckAdapter
+
+        return MicroDuckAdapter()
     raise RuntimeError(
-        f"Unknown robot runtime adapter: {selected}. Available adapters: simulated"
+        f"Unknown robot runtime adapter: {selected}. Available adapters: simulated, ros2, microduck"
     )

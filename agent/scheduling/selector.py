@@ -30,6 +30,7 @@ class ResourceSelector:
         capability: CapabilitySpec,
         requested_resource_id: str | None = None,
     ) -> ResourceSelection:
+        self.registry.refresh_stale()
         if requested_resource_id:
             resource = self.registry.get(requested_resource_id)
             self._validate(resource, capability)

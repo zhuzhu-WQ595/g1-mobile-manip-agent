@@ -72,12 +72,25 @@ SAFE_ROBOT_TOOLS = {
     "robot_cancel_action",
     "robot_speak",
     "robot_capture_image",
+    "duck_stop",
+    "slam_get_pose",
+    "nav_list_places",
+    "vision_verify",
 }
 
 MOTION_ROBOT_TOOLS = {
+    "nav_go_to_place",
+    "vla_run_skill",
     "robot_move",
     "robot_rotate",
     "robot_execute_plan",
+    "duck_walk",
+    "duck_sit",
+    "duck_kick",
+    "duck_roulade",
+    "duck_ground_pick",
+    "duck_head",
+    "duck_body_pose",
 }
 
 REMOTE_SERVICE_TOOLS = {"invoke_remote_service"}

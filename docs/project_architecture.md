@@ -89,12 +89,32 @@ capabilities
 status       available / degraded / busy / offline
 load         0.0 - 1.0
 priority
+last_seen_at
+consecutive_failures
+last_error
+heartbeat_timeout_s
+failure_threshold
 metadata
 ```
 
 调用方默认不填写 `resource_id`。Selector 先筛选支持目标 Capability 和 execution target 的资源，排除 busy 和 offline，再依次比较可用状态、负载、优先级和稳定 ID。显式指定资源只用于管理、调试或固定路由，并且仍需通过能力和状态检查。
 
 默认环境为四种 execution target 分别注册一个内置逻辑资源。接入多台机器人或多个外部执行器时，为相同 Capability 注册不同资源及其 Handler 即可，不需要修改 Agent 主循环。
+
+资源健康规则：
+
+```text
+开始执行                    -> busy
+执行成功或收到心跳           -> available，并清零连续失败
+第一次可重试故障             -> degraded
+连续故障达到 failure_threshold -> offline
+权限、参数等非资源故障         -> 释放资源，不累计失败
+超过半个 heartbeat_timeout    -> degraded
+超过完整 heartbeat_timeout    -> offline
+新的有效心跳                  -> available，重新参与调度
+```
+
+只有配置了 `heartbeat_timeout_s` 的外部资源才根据失联时间变化；本地内置逻辑资源不会因为长时间没有任务而离线。失联状态会在资源选择和 Web 状态查询前刷新。Web 通过 `GET /api/resources` 返回资源快照，页面每 5 秒更新一次，但网页轮询本身不改变资源健康数据。
 
 ### 统一执行协议
 

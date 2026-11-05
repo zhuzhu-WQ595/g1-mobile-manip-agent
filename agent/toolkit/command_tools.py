@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 from ..permissions import split_command
@@ -15,6 +16,10 @@ COMMAND_TOOL_SCHEMAS: list[dict[str, object]] = [
 
 def run_command(command: str) -> str:
     args = list(split_command(command))
+    # The whitelist spells the interpreter as "python", but that name is not an
+    # executable on every system. Run the interpreter that hosts the agent.
+    if args and args[0] == "python":
+        args[0] = sys.executable
     completed = subprocess.run(
         args,
         cwd=Path.cwd(),
