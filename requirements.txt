@@ -1,0 +1,22 @@
+# Self-Test Agent dependencies
+#
+# The agent core (agent/, contracts/, services/) is stdlib-only — no runtime
+# dependencies are needed for `python -m agent.main`.
+
+# --- Tests (CI / `pytest tests/`) ---
+pytest>=7.4
+
+# --- Sim bridge & occupancy-map tools (scripts/, robot_runtime/isaac_sim.py) ---
+# Only needed when running the Isaac Sim bridge or map generators.
+numpy>=1.24
+scipy>=1.10
+Pillow>=10.0
+PyYAML>=6.0
+
+# --- Doc / video generation utilities (docs/, agentic_video/, scripts/build_pdf.py) ---
+python-docx>=1.1
+reportlab>=4.0
+
+# NOTE: the Isaac Sim bridge additionally requires isaacsim, omni, pxr and
+# internutopia, which ship with Isaac Sim 4.5 and are NOT pip-installable.
+# Run the bridge inside the sim's own python environment instead.

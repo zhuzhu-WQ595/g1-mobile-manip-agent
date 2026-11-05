@@ -18,6 +18,13 @@ from services.perception import PerceptionServiceHTTPServer, SimulatedPerception
 @pytest.fixture
 def perception_server(monkeypatch):
     servers: list[tuple[PerceptionServiceHTTPServer, threading.Thread]] = []
+    # The "clear" scene consults real robot lidar via the gateway; stub it so
+    # unit tests don't depend on a live ROBOT_BASE_URL service.
+    monkeypatch.setattr(
+        SimulatedPerceptionService,
+        "_get_robot_state",
+        lambda self: {"front_obstacle_m": 10.0},
+    )
 
     def start(scene: str) -> str:
         server = PerceptionServiceHTTPServer(

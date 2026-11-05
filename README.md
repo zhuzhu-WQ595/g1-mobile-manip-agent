@@ -1,5 +1,9 @@
 # Self-Test Agent
 
+[![CI](https://github.com/zhuzhu-WQ595/g1-mobile-manip-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/zhuzhu-WQ595/g1-mobile-manip-agent/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)]()
+
 A contract-driven agent framework with an embodied mobile-manipulation demo on
 **Isaac Sim + Unitree G1**. A natural-language goal is planned and executed by an
 LLM tool loop — navigation, scripted manipulation skills, VLM verification —
@@ -15,13 +19,11 @@ Mission: *"Go to the kitchen, open the fridge, pick the apple, carry it to
 the dining table and place it."*
 
 <p align="center">
-  <img src="docs/report_assets/arch.png" width="80%" alt="architecture">
+  <img src="docs/report_assets/demo.gif" width="85%" alt="full mission timelapse">
 </p>
 
 <p align="center">
-  <img src="docs/report_assets/seg_8s.png" width="30%" alt="navigate to fridge">
-  <img src="docs/report_assets/seg_65s.png" width="30%" alt="open fridge / pick apple">
-  <img src="docs/report_assets/seg_160s.png" width="30%" alt="place apple on table">
+  <img src="docs/report_assets/arch.png" width="80%" alt="architecture">
 </p>
 
 <p align="center">
